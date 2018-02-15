@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
@@ -28,7 +27,7 @@ func processCmdLineActions() bool {
 			log.Fatal("Cannot create key:", err)
 		}
 
-		err = ioutil.WriteFile(filename, jsonifyWhateverBytes(w), 0600)
+		err = w.Save(filename)
 		if err != nil {
 			log.Fatal(err)
 		}

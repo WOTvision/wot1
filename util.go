@@ -53,7 +53,7 @@ func jsonifyWhatever(i interface{}) string {
 	return string(jsonb)
 }
 
-func jsonifyWhateverBytes(i interface{}) []byte {
+func jsonifyWhateverToBytes(i interface{}) []byte {
 	jsonb, err := json.Marshal(i)
 	if err != nil {
 		log.Panic(err)

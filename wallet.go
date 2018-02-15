@@ -43,6 +43,9 @@ type WalletKey struct {
 	priv ed25519.PrivateKey // private key, internal representation
 }
 
+// The current wallet, a global variable
+var currentWallet = Wallet{}
+
 func (w *Wallet) createKey(name string, password string) error {
 	if !inStringSlice(WalletFlagAES256Keys, w.Flags) {
 		return fmt.Errorf("Need %s", WalletFlagAES256Keys)
@@ -100,27 +103,30 @@ func LoadWallet(filename, password string) (*Wallet, error) {
 
 	passwordHash := sha256.Sum256([]byte(password))
 	for ki := range w.Keys {
-		privB64 := strings.Split(w.Keys[ki].Private, ".")
-		nonce, err := base64.StdEncoding.DecodeString(privB64[0])
-		if err != nil {
-			return nil, err
-		}
-		privEnc, err := base64.StdEncoding.DecodeString(privB64[1])
-		if err != nil {
-			return nil, err
-		}
 
-		aesBlock, err := aes.NewCipher(passwordHash[:])
-		if err != nil {
-			return nil, err
-		}
-		aesStream, err := cipher.NewGCM(aesBlock)
-		if err != nil {
-			return nil, err
-		}
-		w.Keys[ki].priv, err = aesStream.Open(nil, nonce, privEnc, nil)
-		if err != nil {
-			return nil, err
+		if password != "" { // Decrypt the private key if the password is non-empty
+			privB64 := strings.Split(w.Keys[ki].Private, ".")
+			nonce, err := base64.StdEncoding.DecodeString(privB64[0])
+			if err != nil {
+				return nil, err
+			}
+			privEnc, err := base64.StdEncoding.DecodeString(privB64[1])
+			if err != nil {
+				return nil, err
+			}
+
+			aesBlock, err := aes.NewCipher(passwordHash[:])
+			if err != nil {
+				return nil, err
+			}
+			aesStream, err := cipher.NewGCM(aesBlock)
+			if err != nil {
+				return nil, err
+			}
+			w.Keys[ki].priv, err = aesStream.Open(nil, nonce, privEnc, nil)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		w.Keys[ki].pub, err = base64.StdEncoding.DecodeString(w.Keys[ki].Public)
@@ -130,4 +136,19 @@ func LoadWallet(filename, password string) (*Wallet, error) {
 	}
 
 	return &w, nil
+}
+
+func initWallet() {
+	w, err := LoadWallet(DefaultWalletFilename, "")
+	if err != nil {
+		log.Println("Cannot load", DefaultWalletFilename)
+		return
+	}
+	currentWallet = *w
+	for _, key := range w.Keys {
+		if key.priv != nil {
+			log.Panic("Attempt to load locked wallet resulted in unlocked wallet.")
+		}
+	}
+	log.Println("Loaded", DefaultWalletFilename, "(locked)")
 }

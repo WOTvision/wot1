@@ -48,6 +48,8 @@ func main() {
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, syscall.SIGINT)
 
+	initWallet()
+
 	go webServer()
 	for {
 		select {
