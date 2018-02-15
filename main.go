@@ -36,8 +36,6 @@ func main() {
 		log.SetOutput(os.Stderr)
 	}
 
-	log.Println("Starting up...")
-
 	flag.Parse()
 
 	if len(flag.Args()) > 0 {
@@ -46,6 +44,7 @@ func main() {
 		}
 	}
 
+	log.Println("Starting up...")
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, syscall.SIGINT)
 

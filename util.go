@@ -45,20 +45,20 @@ func inIntSlice(i int, si []int) bool {
 	return false
 }
 
-func jsonifyStringMap(m map[string]string) string {
-	jsonb, err := json.Marshal(m)
-	if err != nil {
-		log.Panic(err)
-	}
-	return string(jsonb)
-}
-
 func jsonifyWhatever(i interface{}) string {
 	jsonb, err := json.Marshal(i)
 	if err != nil {
 		log.Panic(err)
 	}
 	return string(jsonb)
+}
+
+func jsonifyWhateverBytes(i interface{}) []byte {
+	jsonb, err := json.Marshal(i)
+	if err != nil {
+		log.Panic(err)
+	}
+	return jsonb
 }
 
 // WithMutex extends the Mutex type with the convenient .With(func) function
@@ -111,4 +111,14 @@ func hashFileToHexString(fileName string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// Checks if a string appears in the slice of strings
+func inStringSlice(s string, a []string) bool {
+	for _, ss := range a {
+		if ss == s {
+			return true
+		}
+	}
+	return false
 }
