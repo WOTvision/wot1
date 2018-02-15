@@ -5,11 +5,14 @@ import "C"
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -53,6 +56,7 @@ func jsonifyWhatever(i interface{}) string {
 	return string(jsonb)
 }
 
+// Converts whatever to a json string in bytes
 func jsonifyWhateverToBytes(i interface{}) []byte {
 	jsonb, err := json.Marshal(i)
 	if err != nil {
@@ -121,4 +125,24 @@ func inStringSlice(s string, a []string) bool {
 		}
 	}
 	return false
+}
+
+func bytesToBytesLiteral(buf []byte) string {
+	parts := []string{}
+	for _, b := range buf {
+		parts = append(parts, fmt.Sprintf("0x%x", b))
+	}
+	return strings.Join(parts, ",")
+}
+
+func mustDecodeBase64URL(s string) []byte {
+	buf, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		log.Panic(err)
+	}
+	return buf
+}
+
+func mustEncodeBase64URL(b []byte) string {
+	return base64.RawURLEncoding.EncodeToString(b)
 }

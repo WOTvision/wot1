@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -42,7 +43,7 @@ type WalletKey struct {
 	CachedBalance int64    `json:"cached_balance"`
 
 	pub  ed25519.PublicKey  // public key, internal representation
-	priv ed25519.PrivateKey // private key, internal representation
+	priv ed25519.PrivateKey // private key, internal representation, nil if locked/encrypted
 }
 
 // The current wallet, a global variable
@@ -103,32 +104,13 @@ func LoadWallet(filename, password string) (*Wallet, error) {
 		return nil, fmt.Errorf("Only supporting wallets with %s", WalletFlagAES256Keys)
 	}
 
-	passwordHash := sha256.Sum256([]byte(password))
 	for ki := range w.Keys {
 		if w.Keys[ki].Public[0] != PublicKeyPrefix {
 			return nil, fmt.Errorf("Public key in wallet with invalid prefix '%s'", string(w.Keys[ki].Public[0]))
 		}
 
 		if password != "" { // Decrypt the private key if the password is non-empty
-			privB64 := strings.Split(w.Keys[ki].Private, ".")
-			nonce, err := base64.RawURLEncoding.DecodeString(privB64[0])
-			if err != nil {
-				return nil, err
-			}
-			privEnc, err := base64.RawURLEncoding.DecodeString(privB64[1])
-			if err != nil {
-				return nil, err
-			}
-
-			aesBlock, err := aes.NewCipher(passwordHash[:])
-			if err != nil {
-				return nil, err
-			}
-			aesStream, err := cipher.NewGCM(aesBlock)
-			if err != nil {
-				return nil, err
-			}
-			w.Keys[ki].priv, err = aesStream.Open(nil, nonce, privEnc, nil)
+			err := w.Keys[ki].UnlockPrivateKey(password)
 			if err != nil {
 				return nil, err
 			}
@@ -140,6 +122,73 @@ func LoadWallet(filename, password string) (*Wallet, error) {
 		}
 	}
 
+	return &w, nil
+}
+
+// UnlockPrivateKey unlocks the keypair's private part
+func (wk *WalletKey) UnlockPrivateKey(password string) error {
+	if wk.priv != nil {
+		return fmt.Errorf("Private key already unlocked")
+	}
+	passwordHash := sha256.Sum256([]byte(password))
+
+	privB64 := strings.Split(wk.Private, ".")
+	nonce, err := base64.RawURLEncoding.DecodeString(privB64[0])
+	if err != nil {
+		return err
+	}
+	privEnc, err := base64.RawURLEncoding.DecodeString(privB64[1])
+	if err != nil {
+		return err
+	}
+
+	aesBlock, err := aes.NewCipher(passwordHash[:])
+	if err != nil {
+		return err
+	}
+	aesStream, err := cipher.NewGCM(aesBlock)
+	if err != nil {
+		return err
+	}
+	wk.priv, err = aesStream.Open(nil, nonce, privEnc, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// SignRaw signs the provided data with the private key and returns raw signed data
+func (wk *WalletKey) SignRaw(data []byte) ([]byte, error) {
+	if wk.priv == nil {
+		return nil, fmt.Errorf("Private key is locked")
+	}
+	return wk.priv.Sign(rand.Reader, data, crypto.Hash(0))
+}
+
+func (ws *WalletKey) VerifyRaw(msg, sig []byte) error {
+	if ws.pub == nil {
+		return fmt.Errorf("No public key in keypair")
+	}
+	if len(ws.pub) != ed25519.PublicKeySize {
+		return fmt.Errorf("Invalid public key in keypair")
+	}
+	ok := ed25519.Verify(ws.pub, msg, sig)
+	if ok {
+		return nil
+	}
+	return fmt.Errorf("Signature verification failed")
+}
+
+func DecodePublicKeyString(s string) (*WalletKey, error) {
+	if s[0] != PublicKeyPrefix {
+		return nil, fmt.Errorf("Invalid public key prefix '%s'", string(s[0]))
+	}
+	w := WalletKey{Public: s}
+	var err error
+	w.pub, err = base64.RawURLEncoding.DecodeString(s[1:])
+	if err != nil {
+		return nil, err
+	}
 	return &w, nil
 }
 
@@ -155,5 +204,5 @@ func initWallet() {
 			log.Panic("Attempt to load locked wallet resulted in unlocked wallet.")
 		}
 	}
-	log.Println("Loaded", *walletFileName, "(locked)")
+	log.Println("Loaded", *walletFileName)
 }

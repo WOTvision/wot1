@@ -39,6 +39,8 @@ func main() {
 		log.SetOutput(os.Stderr)
 	}
 
+	initWallet()
+
 	if len(flag.Args()) > 0 {
 		if processCmdLineActions() {
 			return
@@ -49,7 +51,7 @@ func main() {
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, syscall.SIGINT)
 
-	initWallet()
+	initGenesis()
 
 	go webServer()
 	for {
