@@ -1,3 +1,4 @@
 wot1
 *.o
 *.a
+wallet.json
