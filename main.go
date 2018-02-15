@@ -23,8 +23,11 @@ var sysEventChannel = make(chan sysEventMessage, 5)
 var startTime = time.Now()
 
 var logFileName = flag.String("log", "/tmp/wot1.log", "Log file ('-' for only stderr)")
+var walletFileName = flag.String("wallet", DefaultWalletFilename, "Wallet filename")
 
 func main() {
+	flag.Parse()
+
 	if *logFileName != "-" {
 		f, err := os.OpenFile(*logFileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0664)
 		if err != nil {
@@ -35,8 +38,6 @@ func main() {
 	} else {
 		log.SetOutput(os.Stderr)
 	}
-
-	flag.Parse()
 
 	if len(flag.Args()) > 0 {
 		if processCmdLineActions() {

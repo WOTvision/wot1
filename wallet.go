@@ -139,9 +139,9 @@ func LoadWallet(filename, password string) (*Wallet, error) {
 }
 
 func initWallet() {
-	w, err := LoadWallet(DefaultWalletFilename, "")
+	w, err := LoadWallet(*walletFileName, "")
 	if err != nil {
-		log.Println("Cannot load", DefaultWalletFilename)
+		log.Println("Cannot load", *walletFileName)
 		return
 	}
 	currentWallet = *w
@@ -150,5 +150,5 @@ func initWallet() {
 			log.Panic("Attempt to load locked wallet resulted in unlocked wallet.")
 		}
 	}
-	log.Println("Loaded", DefaultWalletFilename, "(locked)")
+	log.Println("Loaded", *walletFileName, "(locked)")
 }
