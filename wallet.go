@@ -19,6 +19,8 @@ import (
 // WalletFlagAES256Keys is the flag which, if present, specifies the keys are encrypted with AES256-GCM
 const WalletFlagAES256Keys = "aes256_keys"
 
+const PublicKeyPrefix = 'W'
+
 // DefaultWalletFilename is the default filename for the wallet file
 const DefaultWalletFilename = "wallet.json"
 
@@ -74,8 +76,8 @@ func (w *Wallet) createKey(name string, password string) error {
 	}
 	privEnc := aesStream.Seal(nil, nonce, wk.priv, nil)
 
-	wk.Private = base64.StdEncoding.EncodeToString(nonce) + "." + base64.StdEncoding.EncodeToString(privEnc)
-	wk.Public = base64.StdEncoding.EncodeToString(wk.pub)
+	wk.Private = base64.RawURLEncoding.EncodeToString(nonce) + "." + base64.RawURLEncoding.EncodeToString(privEnc)
+	wk.Public = string(PublicKeyPrefix) + base64.RawURLEncoding.EncodeToString(wk.pub)
 
 	w.Keys = append(w.Keys, wk)
 	return nil
@@ -103,14 +105,17 @@ func LoadWallet(filename, password string) (*Wallet, error) {
 
 	passwordHash := sha256.Sum256([]byte(password))
 	for ki := range w.Keys {
+		if w.Keys[ki].Public[0] != PublicKeyPrefix {
+			return nil, fmt.Errorf("Public key in wallet with invalid prefix '%s'", string(w.Keys[ki].Public[0]))
+		}
 
 		if password != "" { // Decrypt the private key if the password is non-empty
 			privB64 := strings.Split(w.Keys[ki].Private, ".")
-			nonce, err := base64.StdEncoding.DecodeString(privB64[0])
+			nonce, err := base64.RawURLEncoding.DecodeString(privB64[0])
 			if err != nil {
 				return nil, err
 			}
-			privEnc, err := base64.StdEncoding.DecodeString(privB64[1])
+			privEnc, err := base64.RawURLEncoding.DecodeString(privB64[1])
 			if err != nil {
 				return nil, err
 			}
@@ -129,7 +134,7 @@ func LoadWallet(filename, password string) (*Wallet, error) {
 			}
 		}
 
-		w.Keys[ki].pub, err = base64.StdEncoding.DecodeString(w.Keys[ki].Public)
+		w.Keys[ki].pub, err = base64.RawURLEncoding.DecodeString(w.Keys[ki].Public[1:])
 		if err != nil {
 			return nil, err
 		}
