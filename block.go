@@ -53,7 +53,7 @@ var GenesisBlock = BlockWithHeader{
 	},
 }
 
-const GenesisBlockDifficulty = 8 // number of zeroes
+const GenesisBlockDifficulty = 8 // number of zero bits
 
 func (b *Block) Serialise(w io.Writer) error {
 	jb, err := json.Marshal(b)

@@ -12,7 +12,7 @@ import (
 )
 
 const blocksDirectoryName = "blocks"
-const blockFileFormat = "%10d %s.gz"
+const blockFileFormat = "%010d %s.gz"
 const blockFileGlob = "*.gz"
 
 var blocksDir = ""

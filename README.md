@@ -52,7 +52,6 @@ The genesis block contains the following transaction:
 These are the fields of the JSON document:
 
 * `v` : version number of the transaction format, currently 1
-* `t` : type of transaction
 * `f` : transaction flags
 * `i` : List of transaction inputs, in the UTXO style
 * `o` : List of transaction outputs, in the UTXO style
@@ -73,3 +72,4 @@ Currently defined special keys in the payload document are:
 * `_name`: A human-readable name used in certain types of documents.
 * `_newkey`: A new public key the publisher will use from now on. All previously published transactions by this publisher are to be verified with the old key, while all transactions published from now on with this new key are presumed to be associated with the same publisher.
 * `_delkey`: Instruction to delete the association between a key and this publisher for all subsequent transactions. I.e. all transactions signed by this particular key will no longer be associated with this publisher.
+* `_vouchtx`: The publisher of this transaction vouches that this transaction contains data he considers valid. The value for the key is the tx hash.
