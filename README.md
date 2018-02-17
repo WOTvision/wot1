@@ -12,6 +12,17 @@ Publishing on the WoT blockchain begins by publishing an introductory document, 
 
 Each published document contains the public key of the publisher, and an identification string of the document, which is unique for this publisher. If, at a future point in time, the publisher publishes a document with the same identification string, it is considered to be a newer version of the same document. In this way, keys can be rotated by publishing a new introductory document.
 
+One of the several special fields a document may contain is a statement that the transaction publisher vouches for the validity of a certain transaction (which may contain a document of its own, etc.), which is used to establish a "Web of trust" relationship where publishers choose to verify and vouch for, other publishers and their documents.
+
+## Supported operations
+
+At a high level, the operations supported by the WoT blockchain (in addition to standard cryptocurrency transactions) are:
+
+* Publish a public key and identifying information for it
+* Publish a signed JSON document
+* Publish a statement that another document (which may e.g. contain an introductory document for a new publisher) is vouched for (or "trusted")
+* Rotate keys so that a new key is used for the publisher, maintaining its presence in the blockchain with a new key from this point onwards
+
 # Technical documentation
 
 ## Short intro on how to publish documents from scratch on the WoT blockchain by using the `wot1` app
