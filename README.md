@@ -2,6 +2,8 @@
 
 [White Paper](https://docs.google.com/document/d/1SSBQNTSJY--a-7NjfUMnGdNy4yIg29qOwcWNxHq_DoE/edit?usp=sharing)
 
+Current state of project: early development phase / not usable.
+
 ## Introduction to publishing on the WoT blockchain
 
 The WoT blockchain supports publishing arbitrary JSON documents as its main feature. In addition to that, and supporting it, the blockchain also implements publishing coin transaction (Bitcoin-style). Publishers (both of documents and of coin transactions) are pseudonymous, i.e. in no case are identifying information required to be present to publish on the WoT blockchain. However, one of the biggest benefits of (optionally) associating identifying information is that it can make documents authenticated, as well as stored immutably and permanently on the blockchain. It is a way for all sorts of entities from ordinary persons, organisations, and even government, to publish authenticated document which are guaranteed to be stored in a provable way.
@@ -29,7 +31,7 @@ The genesis block contains the following transaction:
 ```json
 {
     "v": 1,
-    "t": 0,
+    "f": ["coinbase"],
     "i": null,
     "o": [
         {
@@ -51,6 +53,7 @@ These are the fields of the JSON document:
 
 * `v` : version number of the transaction format, currently 1
 * `t` : type of transaction
+* `f` : transaction flags
 * `i` : List of transaction inputs, in the UTXO style
 * `o` : List of transaction outputs, in the UTXO style
 * `d` : The payload data.

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"os/user"
 	"syscall"
 	"time"
 )
@@ -24,6 +25,7 @@ var startTime = time.Now()
 
 var logFileName = flag.String("log", "/tmp/wot1.log", "Log file ('-' for only stderr)")
 var walletFileName = flag.String("wallet", DefaultWalletFilename, "Wallet filename")
+var dataDir = flag.String("datadir", "~/.wot", "Data directory for the blockchain")
 
 func main() {
 	flag.Parse()
@@ -39,6 +41,23 @@ func main() {
 		log.SetOutput(os.Stderr)
 	}
 
+	if (*dataDir)[0] == '~' {
+		usr, err := user.Current()
+		if err != nil {
+			log.Fatal("Cannot get current user's home directory")
+		}
+		*dataDir = usr.HomeDir + (*dataDir)[1:]
+	}
+
+	if len(flag.Args()) > 0 {
+		if processSimpleCmdLineActions() {
+			return
+		}
+	}
+
+	initGenesis()
+	initDataDir()
+	initDatabase()
 	initWallet()
 
 	if len(flag.Args()) > 0 {
@@ -50,8 +69,6 @@ func main() {
 	log.Println("Starting up...")
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, syscall.SIGINT)
-
-	initGenesis()
 
 	go webServer()
 	for {

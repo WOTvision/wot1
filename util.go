@@ -164,3 +164,8 @@ func countStartZeroBits(b []byte) int {
 	}
 	return nBits
 }
+
+func stringMapHasKey(m *map[string]string, k string) bool {
+	_, ok := (*m)[k]
+	return ok
+}

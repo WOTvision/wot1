@@ -15,7 +15,6 @@ type TxOutput struct {
 // Tx is a transaction. It's usually kept as a JSON-serialized string in a block
 type Tx struct {
 	Version int               `json:"v"`
-	Type    int               `json:"t"`
 	Inputs  []TxInput         `json:"i"`
 	Outputs []TxOutput        `json:"o"`
 	Data    map[string]string `json:"d"`

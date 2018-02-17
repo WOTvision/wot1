@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"path"
 	"strings"
 
 	"golang.org/x/crypto/ed25519"
@@ -193,9 +194,13 @@ func DecodePublicKeyString(s string) (*WalletKey, error) {
 }
 
 func initWallet() {
-	w, err := LoadWallet(*walletFileName, "")
+	wFile := *walletFileName
+	if !path.IsAbs(wFile) && wFile[0] != '.' {
+		wFile = path.Join(*dataDir, *walletFileName)
+	}
+	w, err := LoadWallet(wFile, "")
 	if err != nil {
-		log.Println("Cannot load", *walletFileName)
+		log.Println("Cannot load", wFile, err)
 		return
 	}
 	currentWallet = *w
@@ -204,5 +209,5 @@ func initWallet() {
 			log.Panic("Attempt to load locked wallet resulted in unlocked wallet.")
 		}
 	}
-	log.Println("Loaded", *walletFileName)
+	log.Println("Loaded", wFile)
 }

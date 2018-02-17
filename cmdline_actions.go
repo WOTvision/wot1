@@ -12,7 +12,7 @@ import (
 
 var reSqBrackets = regexp.MustCompile(`\[.+]\]`)
 
-func processCmdLineActions() bool {
+func processSimpleCmdLineActions() bool {
 	cmd := flag.Arg(0)
 	if cmd == "createwallet" {
 		if flag.NArg() != 4 {
@@ -45,6 +45,8 @@ func processCmdLineActions() bool {
 		keyPassword := flag.Arg(2)
 		jsonToSign := []byte(flag.Arg(3))
 
+		initWallet()
+
 		var ii interface{}
 		err := json.Unmarshal(jsonToSign, &ii)
 		if err != nil {
@@ -75,6 +77,16 @@ func processCmdLineActions() bool {
 		if !found {
 			log.Fatal("Cannot find key", keyName)
 		}
+		return true
+	}
+	return false
+}
+
+func processCmdLineActions() bool {
+	cmd := flag.Arg(0)
+	if cmd == "createwallet" {
+		return true
+	} else if cmd == "signjson" {
 		return true
 	}
 	return false

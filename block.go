@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/sha512"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,29 +35,25 @@ type Block struct {
 
 var GenesisBlock = BlockWithHeader{
 	BlockHeader: BlockHeader{
-		Hash: "-efW81jHcegxYeXL2V24htlXru2UnK6x1lL-iPbilZk",
+		Hash: "gvm_1rz4eoiq65mIm7vquolJbflQKbuTp3TQ38TKj0U",
 	},
 	Block: Block{
 		PreviousBlockHash: "",
 		TimeUTC:           1518733930,
-		Nonce:             32689,
+		Nonce:             44990,
 		Flags:             []string{"genesis"},
 		Transactions: []BlockTransaction{
 			BlockTransaction{
-				TxHash:    "eiw1F6UZFhw3ejIEVLpOBmYATEc6gi3V2nlD6tAGSEw",
+				TxHash:    "jghwrKFT-y9KYiLdk3eWCH-vB47nSxjMwEh0yhF3hM0",
 				Flags:     []string{"coinbase"},
-				TxData:    `{"v":1,"t":0,"i":null,"o":[{"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","a":100000}],"d":{"genesis":"The Guardian, 15th Feb 2018, \"Trump again emphasizes 'mental health' over gun control after Florida shooting\"","comment":"Peace among worlds!","_id":"_intro","_key":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","_name":"WOTvision"}}`,
-				Signature: "l80svXH1iWyEHyk2RuhHmmLHlv3P7Bv7cAwViwLgYUNSJcjze1ZetdF8poXIg-TCN8sQmgPDywEKspw4ud9rDQ",
+				TxData:    `{"v":1,"i":null,"o":[{"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","a":100000}],"d":{"genesis":"The Guardian, 15th Feb 2018, \"Trump again emphasizes 'mental health' over gun control after Florida shooting\"","comment":"Peace among worlds!","_id":"_intro","_key":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","_name":"WOTvision"}}`,
+				Signature: "mev6DW0qRiNlflSMhHIKJ2D-sMM10vKW0Z8YNbnGwqdojoQnBBrYQHo1coAEQC2W2CroAv633NfegqLa6i-vAQ",
 			},
 		},
 	},
 }
 
 const GenesisBlockDifficulty = 8 // number of zeroes
-
-func (bt *BlockTransaction) Serialise(w io.Writer) {
-	binary.Write(w, binary.LittleEndian, bt)
-}
 
 func (b *Block) Serialise(w io.Writer) error {
 	jb, err := json.Marshal(b)
@@ -121,13 +116,13 @@ func initGenesis() {
 	}
 
 	/*
-		GenesisBlock.Mine(8)
+		GenesisBlock.Mine(GenesisBlockDifficulty)
 		log.Println(GenesisBlock.Nonce)
 	*/
 
 	bHash := GenesisBlock.Block.Hash()
 	if mustEncodeBase64URL(bHash) != GenesisBlock.BlockHeader.Hash {
-		log.Fatalln("Genesis block has failed header check. Expecting", mustEncodeBase64URL(bHash), "got", GenesisBlock.BlockHeader.Hash)
+		log.Fatalln("Genesis block has failed hash check. Expecting", mustEncodeBase64URL(bHash), "got", GenesisBlock.BlockHeader.Hash)
 	}
 	if countStartZeroBits(bHash) != GenesisBlockDifficulty {
 		log.Fatalln("Genesis block difficulty mismatch.")
