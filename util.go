@@ -146,3 +146,21 @@ func mustDecodeBase64URL(s string) []byte {
 func mustEncodeBase64URL(b []byte) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
+
+func countStartZeroBits(b []byte) int {
+	nBits := 0
+	for i := 0; i < len(b); i++ {
+		if b[i] == 0 {
+			nBits += 8
+		} else {
+			for z := uint(7); z >= 0; z-- {
+				if b[i]&(1<<z) == 0 {
+					nBits++
+				} else {
+					break
+				}
+			}
+		}
+	}
+	return nBits
+}
