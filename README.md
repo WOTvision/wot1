@@ -1,6 +1,6 @@
 # The WoT blockchain app v1
 
-For a description what this is all about, read the [White Paper](https://docs.google.com/document/d/1SSBQNTSJY--a-7NjfUMnGdNy4yIg29qOwcWNxHq_DoE/edit?usp=sharing)
+For a description what this is all about, read the [White Paper](https://docs.google.com/document/d/1SSBQNTSJY--a-7NjfUMnGdNy4yIg29qOwcWNxHq_DoE/edit?usp=sharing).
 
 Current state of project: early development phase / not usable.
 
