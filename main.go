@@ -77,6 +77,7 @@ func main() {
 			switch msg.event {
 			case eventQuit:
 				log.Println("Exiting")
+				shutdownDatabase()
 				os.Exit(msg.idata)
 			}
 		case sig := <-sigChannel:

@@ -69,10 +69,20 @@ func dbFilePresent() bool {
 
 func initDatabase() {
 	var err error
+	exists := true
 	dbName := path.Join(*dataDir, sqliteDatabaseName)
+	if _, err = os.Stat(dbName); err != nil {
+		exists = false
+	}
 	db, err = sql.Open("sqlite3", dbName)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if !exists {
+		_, err = db.Exec("PRAGMA journal_mode=WAL")
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	for tname, tdef := range dbTables {
 		_, err := db.Exec(tdef)
@@ -102,6 +112,11 @@ func initDatabase() {
 			}
 		}
 	}
+}
+
+func shutdownDatabase() {
+	db.Exec("PRAGMA optimize")
+	db.Close()
 }
 
 func dbExistsBlockByHeight(height int) bool {

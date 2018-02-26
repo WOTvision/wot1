@@ -205,7 +205,6 @@ func initWallet(create bool) {
 		if err != nil {
 			log.Fatal("Cannot create key:", err)
 		}
-
 		err = w.Save(wFile)
 		if err != nil {
 			log.Fatal(err)
