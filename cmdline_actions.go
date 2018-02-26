@@ -45,7 +45,7 @@ func processSimpleCmdLineActions() bool {
 		keyPassword := flag.Arg(2)
 		jsonToSign := []byte(flag.Arg(3))
 
-		initWallet()
+		initWallet(false)
 
 		var ii interface{}
 		err := json.Unmarshal(jsonToSign, &ii)

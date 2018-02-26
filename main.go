@@ -58,7 +58,7 @@ func main() {
 	initGenesis()
 	initDataDir()
 	initDatabase()
-	initWallet()
+	initWallet(true)
 
 	if len(flag.Args()) > 0 {
 		if processCmdLineActions() {

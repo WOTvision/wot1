@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"path"
 	"strings"
 
@@ -193,11 +194,27 @@ func DecodePublicKeyString(s string) (*WalletKey, error) {
 	return &w, nil
 }
 
-func initWallet() {
+func initWallet(create bool) {
 	wFile := *walletFileName
 	if !path.IsAbs(wFile) && wFile[0] != '.' {
 		wFile = path.Join(*dataDir, *walletFileName)
 	}
+	if _, err := os.Stat(wFile); err != nil && create {
+		w := Wallet{Name: "default", Flags: []string{WalletFlagAES256Keys}}
+		err := w.createKey("default", "password")
+		if err != nil {
+			log.Fatal("Cannot create key:", err)
+		}
+
+		err = w.Save(wFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println(fmt.Sprintf("Created a key named '%s'", w.Keys[0].Name))
+	} else {
+		log.Panicln("Can neither load or create wallet", wFile)
+	}
+
 	w, err := LoadWallet(wFile, "")
 	if err != nil {
 		log.Println("Cannot load", wFile, err)

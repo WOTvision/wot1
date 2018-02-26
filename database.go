@@ -53,13 +53,19 @@ var dbTables = map[string]string{
 }
 
 var dbTableIndexes = map[string]string{
-	"publisher_pubkey_idx":    `CREATE INDEX IF NOT EXISTS publisher_pubkey_idx ON publisher_pubkey(key)`,
+	"publisher_pubkey_idx":    `CREATE INDEX IF NOT EXISTS publisher_pubkey_idx ON publisher_pubkey(pubkey)`,
 	"publisher_pubkey_id_idx": `CREATE INDEX IF NOT EXISTS publisher_pubkey_id_idx ON publisher_pubkey(publisher_id)`,
-	"fact_publisher_idx":      `CREATE INDEX IT NOT EXISTS fact_publisher_idx ON fact(publisher_id, key)`,
-	"utxo_idx":                `CREATE INDEX IF NOT EXISTS utxo_idx ON utxo(txchash, index)`,
+	"fact_publisher_idx":      `CREATE INDEX IF NOT EXISTS fact_publisher_idx ON fact(publisher_id, key)`,
+	"utxo_idx":                `CREATE INDEX IF NOT EXISTS utxo_idx ON utxo(txhash, n)`,
 }
 
 var db *sql.DB
+
+func dbFilePresent() bool {
+	dbName := path.Join(*dataDir, sqliteDatabaseName)
+	_, err := os.Stat(dbName)
+	return err == nil
+}
 
 func initDatabase() {
 	var err error

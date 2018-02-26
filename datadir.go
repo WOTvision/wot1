@@ -25,7 +25,18 @@ func initDataDir() {
 	blocksDir = path.Join(*dataDir, blocksDirectoryName)
 	if _, err := os.Stat(*dataDir); os.IsNotExist(err) {
 		bootstrapDataDir()
+	} else if !dbFilePresent() || countDataDirBlocks() < 1 {
+		bootstrapDataDir()
 	}
+}
+
+func countDataDirBlocks() int {
+	blocks, err := filepath.Glob(path.Join(blocksDir, blockFileGlob))
+	if err != nil {
+		log.Println(err)
+		return -1
+	}
+	return len(blocks)
 }
 
 func getBlockFilename(height int, b BlockWithHeader) string {
