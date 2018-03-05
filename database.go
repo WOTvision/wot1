@@ -206,6 +206,7 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 				dbtx.Rollback()
 				return fmt.Errorf("Publisher not found for key %s: %s", tx.Data["_key"], err.Error())
 			}
+			log.Println(err)
 			// Special handling for the genesis block
 			publisher, err = dbIntroducePublisher(dbtx, &btx, &tx, 0)
 			if err != nil {
@@ -239,20 +240,28 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 	return nil
 }
 
-func dbGetPublisherbyKey(pubkey string, atBlock int) (*Publisher, error) {
+func dbGetPublisherbyKey(pubKey string, atBlock int) (*Publisher, error) {
 	p := Publisher{}
-	err := db.QueryRow("SELECT id, publisher_id, since_block, to_block FROM publisher_pubkey WHERE pubkey=? ORDER BY since_block DESC", pubkey).Scan(&p.CurrentPubKeyID, &p.ID, &p.SinceBlock, &p.ToBlock)
+	nullToBlock := sql.NullInt64{}
+	err := db.QueryRow("SELECT id, publisher_id, since_block, to_block FROM publisher_pubkey WHERE pubkey=? ORDER BY since_block DESC", pubKey).Scan(&p.CurrentPubKeyID, &p.ID, &p.SinceBlock, &nullToBlock)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting publisher for pubkey %s", pubkey)
+		return nil, fmt.Errorf("Error getting publisher for pubkey %s: %s", pubKey, err.Error())
 	}
+	p.ToBlock = int(nullToBlock.Int64)
 	err = db.QueryRow("SELECT name FROM publisher WHERE id=?", p.ID).Scan(&p.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting publisher by ID %d", p.ID)
 	}
-	if p.SinceBlock >= atBlock && (p.ToBlock > 0 && atBlock <= p.ToBlock) {
-		return &p, nil
+	if nullToBlock.Valid && nullToBlock.Int64 > 0 {
+		if p.SinceBlock >= atBlock && atBlock <= p.ToBlock {
+			return &p, nil
+		}
+	} else {
+		if p.SinceBlock >= atBlock {
+			return &p, nil
+		}
 	}
-	return nil, fmt.Errorf("Publisher's key has expired")
+	return nil, fmt.Errorf("Publisher's key has expired: %s at block %d", pubKey, atBlock)
 }
 
 func dbSaveDocument(publisher *Publisher, tx *Tx, height int) error {
