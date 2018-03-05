@@ -174,8 +174,7 @@ func (ws *WalletKey) VerifyRaw(msg, sig []byte) error {
 	if len(ws.pub) != ed25519.PublicKeySize {
 		return fmt.Errorf("Invalid public key in keypair")
 	}
-	ok := ed25519.Verify(ws.pub, msg, sig)
-	if ok {
+	if ed25519.Verify(ws.pub, msg, sig) {
 		return nil
 	}
 	return fmt.Errorf("Signature verification failed")

@@ -33,6 +33,7 @@ var dbTables = map[string]string{
 	)`,
 	"publisher_pubkey": `
 	CREATE TABLE IF NOT EXISTS publisher_pubkey (
+		id				INTEGER PRIMARY KEY,
 		publisher_id 	INTEGER NOT NULL REFERENCES publisher(id),
 		pubkey			TEXT NOT NULL,
 		since_block		INTEGER NOT NULL REFERENCES block(height),
@@ -43,6 +44,12 @@ var dbTables = map[string]string{
 		publisher_id 	INTEGER NOT NULL REFERENCES publisher(id),
 		key				TEXT NOT NULL,
 		value			TEXT NOT NULL
+	)`,
+	"document": `
+	CREATE TABLE IF NOT EXISTS document (
+		publisher_id    INTEGER PRIMARY KEY REFERENCES publisher(id),
+		id				VARCHAR NOT NULL,
+		block			INTEGER NOT NULL REFERENCES block(id)
 	)`,
 	"utxo": `
 	CREATE TABLE IF NOT EXISTS utxo (
@@ -55,8 +62,18 @@ var dbTables = map[string]string{
 var dbTableIndexes = map[string]string{
 	"publisher_pubkey_idx":    `CREATE INDEX IF NOT EXISTS publisher_pubkey_idx ON publisher_pubkey(pubkey)`,
 	"publisher_pubkey_id_idx": `CREATE INDEX IF NOT EXISTS publisher_pubkey_id_idx ON publisher_pubkey(publisher_id)`,
-	"fact_publisher_idx":      `CREATE INDEX IF NOT EXISTS fact_publisher_idx ON fact(publisher_id, key)`,
+	"fact_publisher_idx":      `CREATE UNIQUE INDEX IF NOT EXISTS fact_publisher_idx ON fact(publisher_id, key)`,
+	"document_idx":            `CREATE UNIQUE INDEX IF NOT EXISTS document_idx ON document(publisher_id, id)`,
 	"utxo_idx":                `CREATE INDEX IF NOT EXISTS utxo_idx ON utxo(txhash, n)`,
+}
+
+type Publisher struct {
+	ID              int
+	Name            string
+	CurrentPubKey   string
+	CurrentPubKeyID int
+	SinceBlock      int
+	ToBlock         int
 }
 
 var db *sql.DB
@@ -111,6 +128,10 @@ func initDatabase() {
 				log.Fatal(err)
 			}
 		}
+	}
+	_, err = db.Exec("PRAGMA foreign_keys")
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -169,13 +190,44 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 	}
 
 	for _, btx := range b.Transactions {
-		// verify tx signature
-
-		// import tx data
-		tx := Tx{}
-		err := json.Unmarshal([]byte(btx.TxData), &tx)
+		// Verify tx signature
+		tx, err := btx.VerifyBasics()
 		if err != nil {
-			return fmt.Errorf("Cannot unmarshall tx: %s", btx.TxHash)
+			dbtx.Rollback()
+			return err
+		}
+
+		// Check inputs and outputs
+
+		// Import tx payload document data
+		publisher, err := dbGetPublisherbyKey(tx.Data["_key"], height)
+		if err != nil {
+			if height > 0 {
+				dbtx.Rollback()
+				return fmt.Errorf("Publisher not found for key %s: %s", tx.Data["_key"], err.Error())
+			}
+			// Special handling for the genesis block
+			publisher, err = dbIntroducePublisher(&btx, &tx, 0)
+			if err != nil {
+				dbtx.Rollback()
+				return err
+			}
+		}
+
+		for key, value := range tx.Data {
+			if key[0] == '_' {
+				continue
+			}
+			_, err := db.Exec("INSERT OR REPLACE INTO fact(publisher_id, key, value) VALUES (?, ?, ?)", publisher.ID, key, value)
+			if err != nil {
+				dbtx.Rollback()
+				return err
+			}
+		}
+		err = dbSaveDocument(publisher, &tx, height)
+		if err != nil {
+			dbtx.Rollback()
+			return err
 		}
 	}
 
@@ -185,4 +237,113 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 	}
 
 	return nil
+}
+
+func dbGetPublisherbyKey(pubkey string, atBlock int) (*Publisher, error) {
+	p := Publisher{}
+	err := db.QueryRow("SELECT id, publisher_id, since_block, to_block FROM publisher_pubkey WHERE pubkey=? ORDER BY since_block DESC", pubkey).Scan(&p.CurrentPubKeyID, &p.ID, &p.SinceBlock, &p.ToBlock)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting publisher for pubkey %s", pubkey)
+	}
+	err = db.QueryRow("SELECT name FROM publisher WHERE id=?", p.ID).Scan(&p.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting publisher by ID %d", p.ID)
+	}
+	if p.SinceBlock >= atBlock && (p.ToBlock > 0 && atBlock <= p.ToBlock) {
+		return &p, nil
+	}
+	return nil, fmt.Errorf("Publisher's key has expired")
+}
+
+func dbSaveDocument(publisher *Publisher, tx *Tx, height int) error {
+	_, err := db.Exec("INSERT OR REPLACE INTO document (publisher_id, id, block) VALUES (?, ?, ?)", publisher.ID, tx.Data["_id"], height)
+	return err
+}
+
+func dbIntroducePublisher(btx *BlockTransaction, tx *Tx, height int) (*Publisher, error) {
+	id, ok := tx.Data["_id"]
+	if !ok {
+		return nil, fmt.Errorf("Missing _id in %s", btx.TxHash)
+	}
+	if id != "_intro" {
+		return nil, fmt.Errorf("Trying to introduce a publisher without _id in %s", btx.TxHash)
+	}
+
+	name, ok := tx.Data["_name"]
+	if !ok {
+		return nil, fmt.Errorf("Trying to introduce a publisher without _name in %s", btx.TxHash)
+	}
+
+	pubKey, ok := tx.Data["_key"]
+	if !ok {
+		return nil, fmt.Errorf("Trying to introduce a publisher without _key in %s", btx.TxHash)
+	}
+
+	publisherID := 0
+	publisherPubKeyID := 0
+	publisherSinceBlock := 0
+	err := db.QueryRow("SELECT publisher_id, id, since_block FROM publisher_pubkey WHERE pubkey=?", pubKey).Scan(&publisherID, &publisherPubKeyID, &publisherSinceBlock)
+	if err == nil {
+		// The publisher already exists, so this operation can only replace its key
+		newKey, ok := tx.Data["_newkey"]
+		if !ok {
+			return nil, fmt.Errorf("Trying to re-introduce (replace key) a publisher without _newkey in %s", btx.TxHash)
+		}
+		dbtx, err := db.Begin()
+		if err != nil {
+			return nil, err
+		}
+		res, err := dbtx.Exec("INSERT INTO publisher_pubkey (publisher_id, pubkey, since_block) VALUES (?, ?, ?)", publisherID, newKey, height)
+		if err != nil {
+			dbtx.Rollback()
+			return nil, err
+		}
+		lastPubKeyID, err := res.LastInsertId()
+		if err != nil {
+			dbtx.Rollback()
+			return nil, err
+		}
+		publisherPubKeyID = int(lastPubKeyID)
+		_, err = dbtx.Exec("UPDATE publisher SET name=? WHERE id=?", name, publisherID)
+		if err != nil {
+			dbtx.Rollback()
+			return nil, err
+		}
+		err = dbtx.Commit()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Brand new publisher
+		dbtx, err := db.Begin()
+		if err != nil {
+			return nil, err
+		}
+		res, err := dbtx.Exec("INSERT INTO publisher (name) VALUES (?)", name)
+		if err != nil {
+			return nil, err
+		}
+		lastID, err := res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		publisherID := int(lastID)
+		res, err = dbtx.Exec("INSERT INTO publisher_pubkey (publisher_id, pubkey, since_block) VALUES (?,?,?)", publisherID, pubKey, height)
+		if err != nil {
+			return nil, err
+		}
+		lastKeyID, err := res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		publisherPubKeyID = int(lastKeyID)
+		err = dbtx.Commit()
+		if err != nil {
+			return nil, err
+		}
+		publisherSinceBlock = height
+	}
+
+	p := Publisher{ID: publisherID, CurrentPubKeyID: publisherPubKeyID, CurrentPubKey: pubKey, Name: name, SinceBlock: publisherSinceBlock}
+	return &p, nil
 }

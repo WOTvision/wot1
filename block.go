@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -92,6 +93,40 @@ func (b *Block) Mine(diff int) {
 			fmt.Println(b.Nonce)
 		}
 	}
+}
+
+func (btx *BlockTransaction) VerifyBasics() (Tx, error) {
+	txDataBytes := []byte(btx.TxData)
+
+	tx := Tx{}
+	txHash := sha256.Sum256(txDataBytes)
+	if mustEncodeBase64URL(txHash[:]) != btx.TxHash {
+		return tx, fmt.Errorf("Invalid tx hash: %s", btx.TxHash)
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(btx.Signature)
+	if err != nil {
+		return tx, err
+	}
+	err = json.Unmarshal(txDataBytes, &tx)
+	if err != nil {
+		return tx, fmt.Errorf("Cannot unmarshall tx: %s", btx.TxHash)
+	}
+	keyString, ok := tx.Data["_key"]
+	if !ok {
+		return tx, fmt.Errorf("Missing _key in tx data: %s", btx.TxHash)
+	}
+	_, ok = tx.Data["_id"]
+	if !ok {
+		return tx, fmt.Errorf("Missing _id in tx data: %s", btx.TxHash)
+	}
+	k, err := DecodePublicKeyString(keyString)
+	if err != nil {
+		return tx, err
+	}
+	if err = k.VerifyRaw(txDataBytes, sig); err != nil {
+		return tx, fmt.Errorf("Signature doesn't match _key: %s: %s", btx.TxHash, err.Error())
+	}
+	return tx, nil
 }
 
 func initGenesis() {
