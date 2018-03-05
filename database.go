@@ -207,7 +207,7 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 				return fmt.Errorf("Publisher not found for key %s: %s", tx.Data["_key"], err.Error())
 			}
 			// Special handling for the genesis block
-			publisher, err = dbIntroducePublisher(&btx, &tx, 0)
+			publisher, err = dbIntroducePublisher(dbtx, &btx, &tx, 0)
 			if err != nil {
 				dbtx.Rollback()
 				return err
@@ -260,7 +260,7 @@ func dbSaveDocument(publisher *Publisher, tx *Tx, height int) error {
 	return err
 }
 
-func dbIntroducePublisher(btx *BlockTransaction, tx *Tx, height int) (*Publisher, error) {
+func dbIntroducePublisher(dbtx *sql.Tx, btx *BlockTransaction, tx *Tx, height int) (*Publisher, error) {
 	id, ok := tx.Data["_id"]
 	if !ok {
 		return nil, fmt.Errorf("Missing _id in %s", btx.TxHash)
@@ -289,10 +289,6 @@ func dbIntroducePublisher(btx *BlockTransaction, tx *Tx, height int) (*Publisher
 		if !ok {
 			return nil, fmt.Errorf("Trying to re-introduce (replace key) a publisher without _newkey in %s", btx.TxHash)
 		}
-		dbtx, err := db.Begin()
-		if err != nil {
-			return nil, err
-		}
 		res, err := dbtx.Exec("INSERT INTO publisher_pubkey (publisher_id, pubkey, since_block) VALUES (?, ?, ?)", publisherID, newKey, height)
 		if err != nil {
 			dbtx.Rollback()
@@ -309,16 +305,8 @@ func dbIntroducePublisher(btx *BlockTransaction, tx *Tx, height int) (*Publisher
 			dbtx.Rollback()
 			return nil, err
 		}
-		err = dbtx.Commit()
-		if err != nil {
-			return nil, err
-		}
 	} else {
 		// Brand new publisher
-		dbtx, err := db.Begin()
-		if err != nil {
-			return nil, err
-		}
 		res, err := dbtx.Exec("INSERT INTO publisher (name) VALUES (?)", name)
 		if err != nil {
 			return nil, err
@@ -337,10 +325,6 @@ func dbIntroducePublisher(btx *BlockTransaction, tx *Tx, height int) (*Publisher
 			return nil, err
 		}
 		publisherPubKeyID = int(lastKeyID)
-		err = dbtx.Commit()
-		if err != nil {
-			return nil, err
-		}
 		publisherSinceBlock = height
 	}
 
