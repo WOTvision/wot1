@@ -121,7 +121,7 @@ func processSimpleCmdLineActions() bool {
 			log.Fatal("No keys in current wallet")
 		}
 		for _, key := range currentWallet.Keys {
-			fmt.Println(fmt.Sprintf("%-25s %v %v", key.Name, key.CreationTime.Format(time.RFC3339), key.Flags))
+			fmt.Println(fmt.Sprintf("%-25s %s %v %v", key.Name, key.Public, key.CreationTime.Format(time.RFC3339), key.Flags))
 		}
 		return true
 	}
