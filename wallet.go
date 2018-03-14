@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ed25519"
 )
@@ -38,11 +39,12 @@ type Wallet struct {
 
 // WalletKey is a record of a public-private keypair
 type WalletKey struct {
-	Name          string   `json:"name"` // Unique among the keys in this wallet
-	Private       string   `json:"private"`
-	Public        string   `json:"public"`
-	Flags         []string `json:"flags"`
-	CachedBalance int64    `json:"cached_balance"`
+	Name          string    `json:"name"` // Unique among the keys in this wallet
+	Private       string    `json:"private"`
+	Public        string    `json:"public"`
+	Flags         []string  `json:"flags"`
+	CachedBalance int64     `json:"cached_balance"`
+	CreationTime  time.Time `json:"ctime"`
 
 	pub  ed25519.PublicKey  // public key, internal representation
 	priv ed25519.PrivateKey // private key, internal representation, nil if locked/encrypted
@@ -50,6 +52,7 @@ type WalletKey struct {
 
 // The current wallet, a global variable
 var currentWallet = Wallet{}
+var currentWalletFile string
 
 func (w *Wallet) createKey(name string, password string) error {
 	if !inStringSlice(WalletFlagAES256Keys, w.Flags) {
@@ -81,6 +84,7 @@ func (w *Wallet) createKey(name string, password string) error {
 
 	wk.Private = base64.RawURLEncoding.EncodeToString(nonce) + "." + base64.RawURLEncoding.EncodeToString(privEnc)
 	wk.Public = string(PublicKeyPrefix) + base64.RawURLEncoding.EncodeToString(wk.pub)
+	wk.CreationTime = time.Now()
 
 	w.Keys = append(w.Keys, wk)
 	return nil
@@ -226,5 +230,6 @@ func initWallet(create bool) {
 			log.Panic("Attempt to load locked wallet resulted in unlocked wallet.")
 		}
 	}
-	log.Println("Loaded", wFile)
+	currentWalletFile = wFile
+	log.Println("Loaded", currentWalletFile)
 }
