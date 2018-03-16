@@ -51,12 +51,15 @@ var dbTables = map[string]string{
 		id				VARCHAR NOT NULL,
 		block			INTEGER NOT NULL REFERENCES block(id)
 	)`,
-	"utxo": `
-	CREATE TABLE IF NOT EXISTS utxo (
-		txhash			TEXT NOT NULL,
-		n				INTEGER NOT NULL,
-		amount			INTEGER NOT NULL
-	)`,
+	"state": `
+	CREATE TABLE IF NOT EXISTS state (
+		id				INTEGER PRIMARY KEY,
+		pubkey			TEXT NOT NULL UNIQUE,
+		balance			INTEGER NOT NULL DEFAULT 0,
+		data			TEXT,
+		flags			INTEGER
+	)
+	`,
 }
 
 var dbTableIndexes = map[string]string{
@@ -64,7 +67,6 @@ var dbTableIndexes = map[string]string{
 	"publisher_pubkey_id_idx": `CREATE INDEX IF NOT EXISTS publisher_pubkey_id_idx ON publisher_pubkey(publisher_id)`,
 	"fact_publisher_idx":      `CREATE UNIQUE INDEX IF NOT EXISTS fact_publisher_idx ON fact(publisher_id, key)`,
 	"document_idx":            `CREATE UNIQUE INDEX IF NOT EXISTS document_idx ON document(publisher_id, id)`,
-	"utxo_idx":                `CREATE INDEX IF NOT EXISTS utxo_idx ON utxo(txhash, n)`,
 }
 
 type Publisher struct {
@@ -183,12 +185,27 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 	if err != nil {
 		return fmt.Errorf("Cannot unmarshall block: %s", err.Error())
 	}
+	if height == 0 {
+		if b.BlockHeader.Hash != GenesisBlock.BlockHeader.Hash {
+			return fmt.Errorf("Genesis block not on this chain: got %s expecting %s", b.BlockHeader.Hash, GenesisBlock.BlockHeader.Hash)
+		}
+	}
 
 	dbtx, err := db.Begin()
 	if err != nil {
 		return err
 	}
 
+	_, err = dbtx.Exec("INSERT INTO block (height, hash) VALUES (?, ?)", height, hash)
+	if err != nil {
+		dbtx.Rollback()
+		return err
+	}
+
+	touchedPubKeys := []string{}
+	totalFees := uint64(0)
+	coinbaseAmount := uint64(0)
+	coinbaseCount := 0
 	for _, btx := range b.Transactions {
 		// Verify tx signature
 		tx, err := btx.VerifyBasics()
@@ -197,39 +214,127 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 			return err
 		}
 
-		// Check inputs and outputs
-
-		// Import tx payload document data
-		publisher, err := dbGetPublisherbyKey(tx.Data["_key"], height)
-		if err != nil {
-			if height > 0 {
-				dbtx.Rollback()
-				return fmt.Errorf("Publisher not found for key %s: %s", tx.Data["_key"], err.Error())
-			}
-			log.Println(err)
-			// Special handling for the genesis block
-			publisher, err = dbIntroducePublisher(dbtx, &btx, &tx, 0)
-			if err != nil {
-				dbtx.Rollback()
-				return err
-			}
+		isCoinbase := inStringSlice("coinbase", tx.Flags)
+		if isCoinbase {
+			coinbaseCount++
 		}
 
-		for key, value := range tx.Data {
-			if key[0] == '_' {
-				continue
-			}
-			_, err := db.Exec("INSERT OR REPLACE INTO fact(publisher_id, key, value) VALUES (?, ?, ?)", publisher.ID, key, value)
-			if err != nil {
-				dbtx.Rollback()
-				return err
-			}
-		}
-		err = dbSaveDocument(publisher, &tx, height)
-		if err != nil {
+		senderBalance := uint64(0)
+		err = dbtx.QueryRow("SELECT balance FROM state WHERE pubkey=?", tx.SigningPubKey).Scan(&senderBalance)
+		if err != nil && err != sql.ErrNoRows {
 			dbtx.Rollback()
 			return err
 		}
+
+		if !isCoinbase {
+			// Check if outputs are possible, i.e. within current balances, and
+			// deduce them from the sender's balance.
+			for _, out := range tx.Outputs {
+				if out.Amount > senderBalance {
+					dbtx.Rollback()
+					return fmt.Errorf("Transaction amount exeeds balance for %s. Balance is %v, got %v", tx.SigningPubKey, senderBalance, out.Amount)
+				}
+				senderBalance -= out.Amount
+			}
+			touchedPubKeys = append(touchedPubKeys, tx.SigningPubKey)
+		}
+		totalFees += uint64(tx.MinerFeeAmount)
+
+		// Import tx payload document data
+		if len(tx.Data) > 0 {
+			if tx.Data["_key"] != "" && tx.Data["_key"] != tx.SigningPubKey {
+				dbtx.Rollback()
+				return fmt.Errorf("_key in tx %s doesn't match signing key. Expecting %s, got %s", btx.TxHash, tx.SigningPubKey, tx.Data["_key"])
+			}
+
+			publisher, err := dbGetPublisherbyKey(dbtx, tx.SigningPubKey, height)
+			if err != nil {
+				if height > 0 {
+					dbtx.Rollback()
+					return fmt.Errorf("Publisher not found for key %s: %s", tx.SigningPubKey, err.Error())
+				}
+				// Special handling for the genesis block
+				publisher, err = dbIntroducePublisher(dbtx, &btx, &tx, 0)
+				if err != nil {
+					dbtx.Rollback()
+					return err
+				}
+			}
+			for key, value := range tx.Data {
+				if key[0] == '_' {
+					continue
+				}
+				_, err := dbtx.Exec("INSERT OR REPLACE INTO fact(publisher_id, key, value) VALUES (?, ?, ?)", publisher.ID, key, value)
+				if err != nil {
+					dbtx.Rollback()
+					return err
+				}
+			}
+			err = dbSaveDocument(dbtx, publisher, &tx, height)
+			if err != nil {
+				dbtx.Rollback()
+				return err
+			}
+		}
+
+		// Update recipient states, collect receipts
+		for _, out := range tx.Outputs {
+			balance := uint64(0)
+			err := dbtx.QueryRow("SELECT balance FROM state WHERE pubkey=?", out.PubKey).Scan(&balance)
+			if err != nil {
+				if err != sql.ErrNoRows {
+					dbtx.Rollback()
+					return err
+				}
+				_, err = dbtx.Exec("INSERT INTO state(pubkey, balance) VALUES (?, ?)", out.PubKey, out.Amount)
+				if err != nil {
+					dbtx.Rollback()
+					return err
+				}
+				//log.Println("Inserted new balance", out.PubKey, out.Amount)
+			} else {
+				newBalance := balance + out.Amount
+				_, err = dbtx.Exec("UPDATE state SET balance = ? WHERE pubkey = ?", newBalance, out.PubKey)
+				if err != nil {
+					dbtx.Rollback()
+					return err
+				}
+			}
+			touchedPubKeys = append(touchedPubKeys, out.PubKey)
+			if isCoinbase {
+				coinbaseAmount += out.Amount
+			}
+		}
+
+		// Update sender balance state
+		if !isCoinbase {
+			_, err = dbtx.Exec("UPDATE state SET balance=? WHERE pubkey=?", senderBalance, tx.SigningPubKey)
+			if err != nil {
+				dbtx.Rollback()
+				return err
+			}
+		}
+	}
+
+	if coinbaseCount != 1 {
+		dbtx.Rollback()
+		return fmt.Errorf("Exactly 1 coinbase expected. Got %d", coinbaseCount)
+	}
+	if coinbaseAmount != getCoinbaseAtHeight(height)+totalFees {
+		dbtx.Rollback()
+		return fmt.Errorf("The sum of coinbase and fees is invalid. Expecting %v, got %v", coinbaseAmount, getCoinbaseAtHeight(height)+totalFees)
+	}
+
+	balances, err := dbGetBalances(dbtx, touchedPubKeys)
+	if err != nil {
+		dbtx.Rollback()
+		return err
+	}
+	stateHash := mustEncodeBase64URL(calcBalancesHash(balances))
+	if stateHash != b.StateHash {
+		dbtx.Rollback()
+		log.Println("ERROR stateHash:", jsonifyWhatever(balances))
+		return fmt.Errorf("StateHash doesn't match. Expecting %s, got %s", stateHash, b.StateHash)
 	}
 
 	err = dbtx.Commit()
@@ -240,15 +345,15 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 	return nil
 }
 
-func dbGetPublisherbyKey(pubKey string, atBlock int) (*Publisher, error) {
+func dbGetPublisherbyKey(dbtx *sql.Tx, pubKey string, atBlock int) (*Publisher, error) {
 	p := Publisher{}
 	nullToBlock := sql.NullInt64{}
-	err := db.QueryRow("SELECT id, publisher_id, since_block, to_block FROM publisher_pubkey WHERE pubkey=? ORDER BY since_block DESC", pubKey).Scan(&p.CurrentPubKeyID, &p.ID, &p.SinceBlock, &nullToBlock)
+	err := dbtx.QueryRow("SELECT id, publisher_id, since_block, to_block FROM publisher_pubkey WHERE pubkey=? ORDER BY since_block DESC", pubKey).Scan(&p.CurrentPubKeyID, &p.ID, &p.SinceBlock, &nullToBlock)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting publisher for pubkey %s: %s", pubKey, err.Error())
 	}
 	p.ToBlock = int(nullToBlock.Int64)
-	err = db.QueryRow("SELECT name FROM publisher WHERE id=?", p.ID).Scan(&p.Name)
+	err = dbtx.QueryRow("SELECT name FROM publisher WHERE id=?", p.ID).Scan(&p.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting publisher by ID %d", p.ID)
 	}
@@ -264,8 +369,8 @@ func dbGetPublisherbyKey(pubKey string, atBlock int) (*Publisher, error) {
 	return nil, fmt.Errorf("Publisher's key has expired: %s at block %d", pubKey, atBlock)
 }
 
-func dbSaveDocument(publisher *Publisher, tx *Tx, height int) error {
-	_, err := db.Exec("INSERT OR REPLACE INTO document (publisher_id, id, block) VALUES (?, ?, ?)", publisher.ID, tx.Data["_id"], height)
+func dbSaveDocument(dbtx *sql.Tx, publisher *Publisher, tx *Tx, height int) error {
+	_, err := dbtx.Exec("INSERT OR REPLACE INTO document (publisher_id, id, block) VALUES (?, ?, ?)", publisher.ID, tx.Data["_id"], height)
 	return err
 }
 
@@ -291,7 +396,7 @@ func dbIntroducePublisher(dbtx *sql.Tx, btx *BlockTransaction, tx *Tx, height in
 	publisherID := 0
 	publisherPubKeyID := 0
 	publisherSinceBlock := 0
-	err := db.QueryRow("SELECT publisher_id, id, since_block FROM publisher_pubkey WHERE pubkey=?", pubKey).Scan(&publisherID, &publisherPubKeyID, &publisherSinceBlock)
+	err := dbtx.QueryRow("SELECT publisher_id, id, since_block FROM publisher_pubkey WHERE pubkey=?", pubKey).Scan(&publisherID, &publisherPubKeyID, &publisherSinceBlock)
 	if err == nil {
 		// The publisher already exists, so this operation can only replace its key
 		newKey, ok := tx.Data["_newkey"]
@@ -339,4 +444,17 @@ func dbIntroducePublisher(dbtx *sql.Tx, btx *BlockTransaction, tx *Tx, height in
 
 	p := Publisher{ID: publisherID, CurrentPubKeyID: publisherPubKeyID, CurrentPubKey: pubKey, Name: name, SinceBlock: publisherSinceBlock}
 	return &p, nil
+}
+
+func dbGetBalances(dbtx *sql.Tx, pubkeys []string) (map[string]uint64, error) {
+	result := map[string]uint64{}
+	for _, k := range pubkeys {
+		balance := uint64(0)
+		err := dbtx.QueryRow("SELECT balance FROM state WHERE pubkey=?", k).Scan(&balance)
+		if err != nil {
+			return result, err
+		}
+		result[k] = balance
+	}
+	return result, nil
 }
