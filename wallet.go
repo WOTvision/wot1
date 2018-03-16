@@ -33,18 +33,17 @@ type Wallet struct {
 	Name          string      `json:"name"`
 	Version       int         `json:"version"`
 	Flags         []string    `json:"flags"` // e.g. "aes256_keys"
-	CachedBalance int64       `json:"cached_balance"`
+	CachedBalance uint64      `json:"cached_balance"`
 	Keys          []WalletKey `json:"keys"`
 }
 
 // WalletKey is a record of a public-private keypair
 type WalletKey struct {
-	Name          string    `json:"name"` // Unique among the keys in this wallet
-	Private       string    `json:"private"`
-	Public        string    `json:"public"`
-	Flags         []string  `json:"flags"`
-	CachedBalance int64     `json:"cached_balance"`
-	CreationTime  time.Time `json:"ctime"`
+	Name         string    `json:"name"` // Unique among the keys in this wallet
+	Private      string    `json:"private"`
+	Public       string    `json:"public"`
+	Flags        []string  `json:"flags"`
+	CreationTime time.Time `json:"ctime"`
 
 	pub  ed25519.PublicKey  // public key, internal representation
 	priv ed25519.PrivateKey // private key, internal representation, nil if locked/encrypted
