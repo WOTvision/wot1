@@ -43,7 +43,7 @@ The genesis block contains the following transaction:
 {
     "v": 1,
     "f": ["coinbase"],
-    "i": null,
+    "k": "WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY",
     "o": [
         {
             "k": "WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY",
@@ -60,12 +60,12 @@ The genesis block contains the following transaction:
 }
 ```
 
-These are the fields of the JSON document:
+These are the fields present in the transaction:
 
 * `v` : version number of the transaction format, currently 1
-* `f` : transaction flags
-* `i` : List of transaction inputs, in the UTXO style
-* `o` : List of transaction outputs, in the UTXO style
+* `f` : transaction flags, e.g. "coinbase"
+* `k` : transaction signer public key
+* `o` : List of transaction outputs
 * `d` : The payload data.
 
 ### The payload dictionary
