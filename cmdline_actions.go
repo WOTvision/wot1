@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -32,6 +33,7 @@ func showHelp() {
 }
 
 func processSimpleCmdLineActions() bool {
+	// Actions which may be done when the blockchain is not yet functional (initialised)
 	cmd := flag.Arg(0)
 	if cmd == "createwallet" {
 		if flag.NArg() != 4 {
@@ -125,8 +127,17 @@ func processSimpleCmdLineActions() bool {
 			fmt.Println(fmt.Sprintf("%-25s %s %v %v", key.Name, key.Public, key.CreationTime.Format(time.RFC3339), key.Flags))
 		}
 		return true
+	}
+	return false
+}
+
+func processCmdLineActions() bool {
+	// Actions which require the blockchain to be functional
+	cmd := flag.Arg(0)
+	if cmd == "help" {
+		showHelp()
+		os.Exit(0)
 	} else if cmd == "send" {
-		initWallet(false)
 		if len(currentWallet.Keys) < 1 {
 			log.Fatal("No keys in current wallet")
 		}
@@ -179,7 +190,7 @@ func processSimpleCmdLineActions() bool {
 			log.Fatal(err)
 		}
 		states, err := dbGetStates(dbtx, []string{toKeyStr})
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			log.Fatal(err)
 		}
 		dbtx.Rollback()
@@ -197,17 +208,9 @@ func processSimpleCmdLineActions() bool {
 			log.Fatal(err)
 		}
 		strSig := mustEncodeBase64URL(sig)
-		btx := BlockTransaction{TxHash: mustEncodeBase64URL(txJSONBytes), TxData: string(txJSONBytes), Signature: strSig}
+		btx := BlockTransaction{TxHash: getTxHashStr(txJSONBytes), TxData: string(txJSONBytes), Signature: strSig}
 		fmt.Println(jsonifyWhatever(btx))
-	}
-	return false
-}
-
-func processCmdLineActions() bool {
-	cmd := flag.Arg(0)
-	if cmd == "help" {
-		showHelp()
-		os.Exit(0)
+		return true
 	}
 	return false
 }

@@ -1,5 +1,9 @@
 package main
 
+import (
+	"crypto/sha256"
+)
+
 const CurrentTxVersion = 1
 
 // A transaction output
@@ -18,4 +22,9 @@ type Tx struct {
 	Outputs        []TxOutput    `json:"o"`
 	MinerFeeAmount uint          `json:"m"`
 	Data           PublishedData `json:"d"`
+}
+
+func getTxHashStr(txData []byte) string {
+	txHash := sha256.Sum256(txData)
+	return mustEncodeBase64URL(txHash[:])
 }

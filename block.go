@@ -101,8 +101,7 @@ func (btx *BlockTransaction) VerifyBasics() (Tx, error) {
 	txDataBytes := []byte(btx.TxData)
 
 	tx := Tx{}
-	txHash := sha256.Sum256(txDataBytes)
-	if mustEncodeBase64URL(txHash[:]) != btx.TxHash {
+	if getTxHashStr(txDataBytes) != btx.TxHash {
 		return tx, fmt.Errorf("Invalid tx hash: %s", btx.TxHash)
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(btx.Signature)

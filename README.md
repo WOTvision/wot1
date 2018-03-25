@@ -47,7 +47,8 @@ The genesis block contains the following transaction:
     "o": [
         {
             "k": "WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY",
-            "a": 100000
+            "a": 1000000,
+            "n": 1
         }
     ],
     "d": {
@@ -65,7 +66,7 @@ These are the fields present in the transaction:
 * `v` : version number of the transaction format, currently 1
 * `f` : transaction flags, e.g. "coinbase"
 * `k` : transaction signer public key
-* `o` : List of transaction outputs
+* `o` : List of transaction outputs (n=account nonce)
 * `d` : The payload data.
 
 ### The payload dictionary
