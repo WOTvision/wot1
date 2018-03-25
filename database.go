@@ -203,10 +203,19 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 	if err != nil {
 		return err
 	}
-
-	_, err = dbtx.Exec("INSERT INTO block (height, hash) VALUES (?, ?)", height, hash)
+	err = dbImportCheckedBlock(dbtx, b, height, hash)
 	if err != nil {
 		dbtx.Rollback()
+		log.Println(err)
+	} else {
+		dbtx.Commit()
+	}
+	return nil
+}
+
+func dbImportCheckedBlock(dbtx *sql.Tx, b BlockWithHeader, height int, hash string) error {
+	_, err := dbtx.Exec("INSERT INTO block (height, hash) VALUES (?, ?)", height, hash)
+	if err != nil {
 		return err
 	}
 
@@ -218,53 +227,52 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 		// Verify tx signature
 		tx, err := btx.VerifyBasics()
 		if err != nil {
-			dbtx.Rollback()
 			return err
 		}
+
+		senderBalance := uint64(0)
+		senderNonce := uint64(0)
 
 		isCoinbase := inStringSlice("coinbase", tx.Flags)
 		if isCoinbase {
 			coinbaseCount++
-		}
-
-		senderBalance := uint64(0)
-		err = dbtx.QueryRow("SELECT balance FROM state WHERE pubkey=?", tx.SigningPubKey).Scan(&senderBalance)
-		if err != nil && err != sql.ErrNoRows {
-			dbtx.Rollback()
-			return err
-		}
-
-		if !isCoinbase {
+		} else {
+			err = dbtx.QueryRow("SELECT balance, nonce FROM state WHERE pubkey=?", tx.SigningPubKey).Scan(&senderBalance, &senderNonce)
+			if err != nil && err != sql.ErrNoRows {
+				return err
+			}
+			if tx.PubKeyNonce != senderNonce+1 {
+				return fmt.Errorf("nonce out of sync for %s: expecting %d, got %d", tx.SigningPubKey, senderNonce+1, tx.PubKeyNonce)
+			}
 			// Check if outputs are possible, i.e. within current balances, and
 			// deduce them from the sender's balance.
 			for _, out := range tx.Outputs {
 				if out.Amount > senderBalance {
-					dbtx.Rollback()
 					return fmt.Errorf("Transaction amount exeeds balance for %s. Balance is %v, got %v", tx.SigningPubKey, senderBalance, out.Amount)
 				}
 				senderBalance -= out.Amount
 			}
+			senderNonce++
 			touchedPubKeys = append(touchedPubKeys, tx.SigningPubKey)
 		}
 		totalFees += uint64(tx.MinerFeeAmount)
 
 		// Import tx payload document data
 		if len(tx.Data) > 0 {
+			// fmt.Println(jsonifyWhatever(tx.Data))
+
 			if tx.Data["_key"] != "" && tx.Data["_key"] != tx.SigningPubKey {
-				dbtx.Rollback()
 				return fmt.Errorf("_key in tx %s doesn't match signing key. Expecting %s, got %s", btx.TxHash, tx.SigningPubKey, tx.Data["_key"])
 			}
 
 			publisher, err := dbGetPublisherbyKey(dbtx, tx.SigningPubKey, height)
 			if err != nil {
 				if height > 0 {
-					dbtx.Rollback()
 					return fmt.Errorf("Publisher not found for key %s: %s", tx.SigningPubKey, err.Error())
 				}
 				// Special handling for the genesis block
 				publisher, err = dbIntroducePublisher(dbtx, &btx, &tx, 0)
 				if err != nil {
-					dbtx.Rollback()
 					return err
 				}
 			}
@@ -274,13 +282,11 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 				}
 				_, err := dbtx.Exec("INSERT OR REPLACE INTO fact(publisher_id, key, value) VALUES (?, ?, ?)", publisher.ID, key, value)
 				if err != nil {
-					dbtx.Rollback()
 					return err
 				}
 			}
 			err = dbSaveDocument(dbtx, publisher, &tx, height)
 			if err != nil {
-				dbtx.Rollback()
 				return err
 			}
 		}
@@ -288,32 +294,21 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 		// Update recipient states, collect receipts
 		for _, out := range tx.Outputs {
 			balance := uint64(0)
-			nonce := uint64(0)
-			err := dbtx.QueryRow("SELECT balance, nonce FROM state WHERE pubkey=?", out.PubKey).Scan(&balance, &nonce)
+			err := dbtx.QueryRow("SELECT balance FROM state WHERE pubkey=?", out.PubKey).Scan(&balance)
 			if err != nil {
 				if err != sql.ErrNoRows {
-					dbtx.Rollback()
 					return err
 				}
-				// Brand new address / state has received something
-				if out.Nonce != 1 {
-					return fmt.Errorf("An address without previous state record has received nonce != 1")
-				}
-				_, err = dbtx.Exec("INSERT INTO state(pubkey, balance, nonce) VALUES (?, ?, ?)", out.PubKey, out.Amount, out.Nonce)
+				// Output to a brand new address / state
+				_, err = dbtx.Exec("INSERT INTO state(pubkey, balance, nonce) VALUES (?, ?, ?)", out.PubKey, out.Amount, 1)
 				if err != nil {
-					dbtx.Rollback()
 					return err
 				}
 				//log.Println("Inserted new balance", out.PubKey, out.Amount)
 			} else {
 				newBalance := balance + out.Amount
-				newNonce := nonce + 1
-				if out.Nonce != newNonce {
-					return fmt.Errorf("nonce out of sync: expected %v, got %v for pubkey %s", newNonce, out.Nonce, out.PubKey)
-				}
-				_, err = dbtx.Exec("UPDATE state SET balance = ?, nonce = ? WHERE pubkey = ?", newBalance, out.Nonce, out.PubKey)
+				_, err = dbtx.Exec("UPDATE state SET balance = ? WHERE pubkey = ?", newBalance, out.PubKey)
 				if err != nil {
-					dbtx.Rollback()
 					return err
 				}
 			}
@@ -325,38 +320,28 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 
 		// Update sender balance state
 		if !isCoinbase {
-			_, err = dbtx.Exec("UPDATE state SET balance=? WHERE pubkey=?", senderBalance, tx.SigningPubKey)
+			_, err = dbtx.Exec("UPDATE state SET balance=?, nonce=? WHERE pubkey=?", senderBalance, senderNonce, tx.SigningPubKey)
 			if err != nil {
-				dbtx.Rollback()
 				return err
 			}
 		}
 	}
 
 	if coinbaseCount != 1 {
-		dbtx.Rollback()
-		return fmt.Errorf("Exactly 1 coinbase expected. Got %d", coinbaseCount)
+		return fmt.Errorf("Exactly 1 coinbase expected in every block. Got %d", coinbaseCount)
 	}
 	if coinbaseAmount != getCoinbaseAtHeight(height)+totalFees {
-		dbtx.Rollback()
 		return fmt.Errorf("The sum of coinbase and fees is invalid. Expecting %v, got %v", coinbaseAmount, getCoinbaseAtHeight(height)+totalFees)
 	}
 
 	states, err := dbGetStates(dbtx, touchedPubKeys)
 	if err != nil {
-		dbtx.Rollback()
 		return err
 	}
 	stateHash := states.getStrHash()
 	if stateHash != b.StateHash {
-		dbtx.Rollback()
 		log.Println("ERROR stateHash:", jsonifyWhatever(states))
 		return fmt.Errorf("StateHash doesn't match. Expecting %s, got %s", stateHash, b.StateHash)
-	}
-
-	err = dbtx.Commit()
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -468,10 +453,72 @@ func dbGetStates(dbtx *sql.Tx, pubkeys []string) (AccountStates, error) {
 	for _, k := range pubkeys {
 		state := RawAccountState{}
 		err := dbtx.QueryRow("SELECT balance, nonce, data FROM state WHERE pubkey=?", k).Scan(&state.Balance, &state.Nonce, &state.Data)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			return result, err
 		}
-		result[k] = &state
+		if err == nil {
+			result[k] = &state
+		}
 	}
 	return result, nil
+}
+
+func dbSimStateHashStr(dbtx *sql.Tx, block BlockWithHeader) (string, error) {
+	touchedAddressesMap := map[string]bool{}
+	for _, btx := range block.Transactions {
+		tx := Tx{}
+		err := json.Unmarshal([]byte(btx.TxData), &tx)
+		if err != nil {
+			return "", err
+		}
+		if !inStringSlice("coinbase", tx.Flags) {
+			touchedAddressesMap[tx.SigningPubKey] = true
+		}
+		for _, out := range tx.Outputs {
+			touchedAddressesMap[out.PubKey] = true
+		}
+	}
+	touchedAddresses := []string{}
+	for a := range touchedAddressesMap {
+		touchedAddresses = append(touchedAddresses, a)
+	}
+	states, err := dbGetStates(dbtx, touchedAddresses)
+	if err != nil {
+		return "", err
+	}
+	//fmt.Println("before:", jsonifyWhatever(states))
+
+	coinbaseCount := 0
+	for _, btx := range block.Transactions {
+		tx := Tx{}
+		json.Unmarshal([]byte(btx.TxData), &tx)
+
+		isCoinbase := inStringSlice("coinbase", tx.Flags)
+		if isCoinbase {
+			coinbaseCount++
+		} else {
+			if states[tx.SigningPubKey] == nil {
+				return "", fmt.Errorf("No state to send from for tx %s", btx.TxHash)
+			}
+		}
+
+		// XXX: fees accounting?!
+		for _, out := range tx.Outputs {
+			if !isCoinbase {
+				if out.Amount < states[tx.SigningPubKey].Balance {
+					states[tx.SigningPubKey].Balance -= out.Amount
+					states[tx.SigningPubKey].Nonce++
+				} else {
+					return "", fmt.Errorf("Not enough balance for tx %s", btx.TxHash)
+				}
+			}
+			if states[out.PubKey] == nil {
+				states[out.PubKey] = &RawAccountState{Balance: out.Amount, Nonce: 1}
+			} else {
+				states[out.PubKey].Balance += out.Amount
+			}
+		}
+	}
+	//fmt.Println("after:", jsonifyWhatever(states))
+	return states.getStrHash(), nil
 }

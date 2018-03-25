@@ -10,7 +10,6 @@ const CurrentTxVersion = 1
 type TxOutput struct {
 	PubKey string `json:"k"`
 	Amount uint64 `json:"a"`
-	Nonce  uint64 `json:"n"` // new nonce after this tx is executed
 	Data   string `json:"d"` // optional
 }
 
@@ -18,9 +17,10 @@ type TxOutput struct {
 type Tx struct {
 	Version        uint          `json:"v"`
 	SigningPubKey  string        `json:"k"`
+	PubKeyNonce    uint64        `json:"n"`
 	Flags          []string      `json:"f"` // "coinbase"
 	Outputs        []TxOutput    `json:"o"`
-	MinerFeeAmount uint          `json:"m"`
+	MinerFeeAmount uint64        `json:"m"`
 	Data           PublishedData `json:"d"`
 }
 

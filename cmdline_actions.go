@@ -7,10 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/big"
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -169,20 +169,21 @@ func processCmdLineActions() bool {
 		if fromKeyStr == toKeyStr {
 			fmt.Println("Warning: sending a tx from and to the same address")
 		}
-		f, _, err := big.ParseFloat(amountStr, 10, CoinDecimals, big.ToPositiveInf)
+
+		f, err := strconv.ParseFloat(amountStr, 32)
 		if err != nil {
 			fmt.Println("Invalid number:", amountStr, err.Error())
 			os.Exit(1)
 		}
-		if f.Sign() < 0 {
+		if f < 0 {
 			fmt.Println("Cannot send negative amounts")
 			os.Exit(1)
 		}
-		f.Mul(f, big.NewFloat(OneCoin))
-		amountInt, _ := f.Uint64()
+		amountInt := uint64(f * OneCoin)
 		var doc PublishedData
 		if jsonDoc != "" && json.Unmarshal([]byte(jsonDoc), &doc) != nil {
 			fmt.Println("Invalid JSON document:", jsonDoc)
+			os.Exit(1)
 		}
 		newNonce := uint64(1)
 		dbtx, err := db.Begin()
@@ -190,14 +191,18 @@ func processCmdLineActions() bool {
 			log.Fatal(err)
 		}
 		defer dbtx.Commit()
-		states, err := dbGetStates(dbtx, []string{toKeyStr})
+		states, err := dbGetStates(dbtx, []string{toKeyStr, fromKeyStr})
 		if err != nil && err != sql.ErrNoRows {
 			log.Fatal(err)
 		}
-		if len(states) != 0 {
-			newNonce = states[toKeyStr].Nonce + 1
+		// fmt.Println(jsonifyWhatever(states))
+		if states[fromKeyStr] == nil {
+			// No "from" address in state database, nothing to send!
+			fmt.Println("No state to send from:", fromKeyStr)
+			os.Exit(1)
 		}
-		tx := Tx{Data: doc, SigningPubKey: fromKeyStr, Version: CurrentTxVersion, Outputs: []TxOutput{TxOutput{PubKey: toKeyStr, Amount: amountInt, Nonce: newNonce}}}
+		newNonce = states[fromKeyStr].Nonce + 1
+		tx := Tx{Data: doc, SigningPubKey: fromKeyStr, PubKeyNonce: newNonce, Version: CurrentTxVersion, Outputs: []TxOutput{TxOutput{PubKey: toKeyStr, Amount: amountInt}}}
 		txJSONBytes := jsonifyWhateverToBytes(tx)
 		err = fromKey.UnlockPrivateKey(fromKeyPassword)
 		if err != nil {

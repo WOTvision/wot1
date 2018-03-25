@@ -39,7 +39,7 @@ func countDataDirBlocks() int {
 	return len(blocks)
 }
 
-func getBlockFilename(height int, b BlockWithHeader) string {
+func getBlockFilename(b BlockWithHeader, height int) string {
 	return path.Join(blocksDir, fmt.Sprintf(blockFileFormat, height, b.BlockHeader.Hash))
 }
 
@@ -62,26 +62,42 @@ func bootstrapDataDir() {
 	if err != nil && !os.IsExist(err) {
 		log.Fatal(err)
 	}
-	currentBlockHeight = 0
-	// Write the genesis block data file. All block files are
-	f, err := os.Create(getBlockFilename(currentBlockHeight, GenesisBlock))
+	err = dataDirSaveBlock(GenesisBlock, 0)
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func dataDirSaveBlock(b BlockWithHeader, height int) error {
+	fname := getBlockFilename(b, height)
+	// Write the genesis block data file. All block files are gzipped.
+	f, err := os.Create(fname)
+	if err != nil {
+		return err
 	}
 	zf, err := gzip.NewWriterLevel(f, 9)
 	if err != nil {
-		log.Fatal(err)
+		os.Remove(fname)
+		return err
 	}
-	err = GenesisBlock.Block.Serialise(zf)
+	err = b.Block.Serialise(zf)
 	if err != nil {
-		log.Fatal(err)
+		os.Remove(fname)
+		return err
 	}
 	err = zf.Close()
 	if err != nil {
-		log.Fatal(err)
+		os.Remove(fname)
+		return err
 	}
 	err = f.Close()
 	if err != nil {
-		log.Fatal(err)
+		os.Remove(fname)
+		return err
 	}
+	return nil
+}
+
+func dataDirDeleteBlock(b BlockWithHeader, height int) error {
+	return os.Remove(getBlockFilename(b, height))
 }

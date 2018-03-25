@@ -28,7 +28,7 @@ type BlockWithHeader struct {
 
 type Block struct {
 	PreviousBlockHash string             `json:"p"`
-	TimeUTC           uint               `json:"T"`
+	TimeUTC           int64              `json:"T"`
 	Nonce             uint               `json:"n"`
 	Flags             []string           `json:"f"`
 	Transactions      []BlockTransaction `json:"t"`
@@ -37,19 +37,19 @@ type Block struct {
 
 var GenesisBlock = BlockWithHeader{
 	BlockHeader: BlockHeader{
-		Hash: "iU3HyYPlr-nxwGSm_lFw2ERQ7fibxqmiRIaGc9GV-NE",
+		Hash: "tJ-JyMNi8PXN-0KydPIi23xSkZiI5Pir2PlcxKaJpog",
 	},
 	Block: Block{
 		PreviousBlockHash: "",
 		TimeUTC:           1518733930,
-		Nonce:             106367,
+		Nonce:             157452,
 		Flags:             []string{"genesis"},
 		Transactions: []BlockTransaction{
 			BlockTransaction{
-				TxHash:    "33eH1RtE7NmDkkE8hinXBcptWw9zUljt8nv3UtM7bIc",
+				TxHash:    "Lc20lK_RhjpVludbpGmIT3PC1ab8PXKT-s84lXhaCNE",
 				Flags:     []string{},
-				TxData:    `{"v":1,"f":["coinbase"],"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","o":[{"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","a":1000000,"n":1}],"d":{"genesis":"The Guardian, 15th Feb 2018, \"Trump again emphasizes 'mental health' over gun control after Florida shooting\"","comment":"Peace among worlds!","_id":"_intro","_key":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","_name":"WOTvision"}}`,
-				Signature: "PMCJiphBeNR6nggA7NQcIzHZ31jqQa80gJVV70qLigiM594tVBAvSXFDxGSqgL-H_K1wcnptTJ16eGvqXFffAw",
+				TxData:    `{"v":1,"f":["coinbase"],"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","o":[{"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","a":1000000}],"d":{"genesis":"The Guardian, 15th Feb 2018, \"Trump again emphasizes 'mental health' over gun control after Florida shooting\"","comment":"Peace among worlds!","_id":"_intro","_key":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","_name":"WOTvision"}}`,
+				Signature: "vVIdTeXOEYCu_t8hMJpJo5tqTQFuOWm42izCEwK8T7sm_ssjh66Fy64R8-7IHc08gzBXkX4YxAvUpw4RMStiBg",
 			},
 		},
 		StateHash: "nof_udomIBf8I2-PavfShu8q7ii2WwFROy1ZaxRvxow",
@@ -59,11 +59,7 @@ var GenesisBlock = BlockWithHeader{
 const GenesisBlockDifficulty = 8 // number of zero bits
 
 func (b *Block) Serialise(w io.Writer) error {
-	jb, err := json.Marshal(b)
-	if err != nil {
-		return err
-	}
-	//log.Println(string(jb))
+	jb := b.getBlockData()
 	n, err := w.Write(jb)
 	if err != nil {
 		return err
@@ -84,17 +80,25 @@ func (b *Block) Hash() []byte {
 }
 
 // Adjusts nonce so that the hash of the block begins with "diff" zero bits
-func (b *Block) Mine(diff int) {
+func (b *Block) Mine(diff int) string {
 	for {
 		h := b.Hash()
 		if countStartZeroBits(h) == diff {
-			return
+			return mustEncodeBase64URL(h)
 		}
 		b.Nonce++
 		if b.Nonce%10000 == 0 {
 			fmt.Println(b.Nonce)
 		}
 	}
+}
+
+func (b *Block) getBlockData() []byte {
+	result, err := json.Marshal(b)
+	if err != nil {
+		log.Panic(err)
+	}
+	return result
 }
 
 func (btx *BlockTransaction) VerifyBasics() (Tx, error) {
@@ -112,16 +116,24 @@ func (btx *BlockTransaction) VerifyBasics() (Tx, error) {
 	if err != nil {
 		return tx, fmt.Errorf("Cannot unmarshall tx: %s", btx.TxHash)
 	}
-	_, ok := tx.Data["_id"]
-	if !ok {
-		return tx, fmt.Errorf("Missing _id in tx data: %s", btx.TxHash)
+	isCoinbase := inStringSlice("coinbase", tx.Flags)
+
+	if len(tx.Data) > 0 {
+		// XXX: there are payloads without _id, e.g. key rotation
+		_, ok := tx.Data["_id"]
+		if !ok {
+			return tx, fmt.Errorf("Missing _id in tx data: %s", btx.TxHash)
+		}
 	}
-	k, err := DecodePublicKeyString(tx.SigningPubKey)
-	if err != nil {
-		return tx, err
-	}
-	if err = k.VerifyRaw(txDataBytes, sig); err != nil {
-		return tx, fmt.Errorf("Signature doesn't match _key: %s: %s", btx.TxHash, err.Error())
+	if !isCoinbase {
+		// All tx except coinbase are signed
+		k, err := DecodePublicKeyString(tx.SigningPubKey)
+		if err != nil {
+			return tx, err
+		}
+		if err = k.VerifyRaw(txDataBytes, sig); err != nil {
+			return tx, fmt.Errorf("Signature doesn't match _key: %s: %s", btx.TxHash, err.Error())
+		}
 	}
 	return tx, nil
 }
@@ -146,15 +158,14 @@ func initGenesis() {
 		if err != nil {
 			log.Fatalln("Error verifying genesis block tx signature:", err)
 		}
+		if !inStringSlice("coinbase", tx.Flags) {
+			log.Fatalln("Only coinbase transactions allowed in genesis")
+		}
 		for _, o := range tx.Outputs {
 			if states[o.PubKey] == nil {
-				states[o.PubKey] = &RawAccountState{Balance: o.Amount, Nonce: o.Nonce}
+				states[o.PubKey] = &RawAccountState{Balance: o.Amount, Nonce: 1}
 			} else {
 				states[o.PubKey].Balance += o.Amount
-				if o.Nonce != states[o.PubKey].Nonce+1 {
-					log.Fatalln("nonce out of sync in genesis block")
-				}
-				states[o.PubKey].Nonce = o.Nonce
 			}
 		}
 	}

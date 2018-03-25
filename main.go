@@ -26,6 +26,8 @@ var startTime = time.Now()
 var logFileName = flag.String("log", "/tmp/wot1.log", "Log file ('-' for only stderr)")
 var walletFileName = flag.String("wallet", DefaultWalletFilename, "Wallet filename")
 var dataDir = flag.String("datadir", "~/.wot", "Data directory for the blockchain")
+var miningActive = flag.Bool("mining", true, "Enables mining on this node")
+var miningRewardAddress = flag.String("miningAddress", "", "Which address receives the mining reward")
 
 func main() {
 	flag.Parse()
@@ -71,6 +73,11 @@ func main() {
 	signal.Notify(sigChannel, syscall.SIGINT)
 
 	go webServer()
+
+	if *miningActive {
+		go miningRig()
+	}
+
 	for {
 		select {
 		case msg := <-sysEventChannel:
