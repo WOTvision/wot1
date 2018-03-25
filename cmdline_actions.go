@@ -189,11 +189,11 @@ func processCmdLineActions() bool {
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer dbtx.Commit()
 		states, err := dbGetStates(dbtx, []string{toKeyStr})
 		if err != nil && err != sql.ErrNoRows {
 			log.Fatal(err)
 		}
-		dbtx.Rollback()
 		if len(states) != 0 {
 			newNonce = states[toKeyStr].Nonce + 1
 		}
@@ -209,7 +209,10 @@ func processCmdLineActions() bool {
 		}
 		strSig := mustEncodeBase64URL(sig)
 		btx := BlockTransaction{TxHash: getTxHashStr(txJSONBytes), TxData: string(txJSONBytes), Signature: strSig}
-		fmt.Println(jsonifyWhatever(btx))
+		_, err = dbtx.Exec("INSERT INTO utx(hash, ts, tx) VALUES (?, ?, ?)", btx.TxHash, time.Now().Unix(), jsonifyWhatever(btx))
+		if err != nil {
+			log.Fatal(err)
+		}
 		return true
 	}
 	return false

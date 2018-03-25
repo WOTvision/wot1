@@ -61,6 +61,13 @@ var dbTables = map[string]string{
 		flags			INTEGER NOT NULL DEFAULT 0
 	)
 	`,
+	"utx": `
+	CREATE TABLE IF NOT EXISTS utx (
+		id				INTEGER PRIMARY KEY,
+		ts				INTEGER NOT NULL,
+		hash			TEXT NOT NULL UNIQUE,
+		tx				TEXT NOT NULL
+	)`,
 }
 
 var dbTableIndexes = map[string]string{
