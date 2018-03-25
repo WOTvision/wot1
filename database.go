@@ -56,8 +56,9 @@ var dbTables = map[string]string{
 		id				INTEGER PRIMARY KEY,
 		pubkey			TEXT NOT NULL UNIQUE,
 		balance			INTEGER NOT NULL DEFAULT 0,
-		data			TEXT,
-		flags			INTEGER
+		nonce			INTEGER NOT NULL DEFAULT 0,
+		data			TEXT NOT NULL DEFAULT '',
+		flags			INTEGER NOT NULL DEFAULT 0
 	)
 	`,
 }
@@ -280,13 +281,18 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 		// Update recipient states, collect receipts
 		for _, out := range tx.Outputs {
 			balance := uint64(0)
-			err := dbtx.QueryRow("SELECT balance FROM state WHERE pubkey=?", out.PubKey).Scan(&balance)
+			nonce := uint64(0)
+			err := dbtx.QueryRow("SELECT balance, nonce FROM state WHERE pubkey=?", out.PubKey).Scan(&balance, &nonce)
 			if err != nil {
 				if err != sql.ErrNoRows {
 					dbtx.Rollback()
 					return err
 				}
-				_, err = dbtx.Exec("INSERT INTO state(pubkey, balance) VALUES (?, ?)", out.PubKey, out.Amount)
+				// Brand new address / state has received something
+				if out.Nonce != 1 {
+					return fmt.Errorf("An address without previous state record has received nonce != 1")
+				}
+				_, err = dbtx.Exec("INSERT INTO state(pubkey, balance, nonce) VALUES (?, ?, ?)", out.PubKey, out.Amount, out.Nonce)
 				if err != nil {
 					dbtx.Rollback()
 					return err
@@ -294,7 +300,11 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 				//log.Println("Inserted new balance", out.PubKey, out.Amount)
 			} else {
 				newBalance := balance + out.Amount
-				_, err = dbtx.Exec("UPDATE state SET balance = ? WHERE pubkey = ?", newBalance, out.PubKey)
+				newNonce := nonce + 1
+				if out.Nonce != newNonce {
+					return fmt.Errorf("nonce out of sync: expected %v, got %v for pubkey %s", newNonce, out.Nonce, out.PubKey)
+				}
+				_, err = dbtx.Exec("UPDATE state SET balance = ?, nonce = ? WHERE pubkey = ?", newBalance, out.Nonce, out.PubKey)
 				if err != nil {
 					dbtx.Rollback()
 					return err
@@ -325,15 +335,15 @@ func dbImportBlock(bData []byte, height int, hash string) error {
 		return fmt.Errorf("The sum of coinbase and fees is invalid. Expecting %v, got %v", coinbaseAmount, getCoinbaseAtHeight(height)+totalFees)
 	}
 
-	balances, err := dbGetBalances(dbtx, touchedPubKeys)
+	states, err := dbGetStates(dbtx, touchedPubKeys)
 	if err != nil {
 		dbtx.Rollback()
 		return err
 	}
-	stateHash := mustEncodeBase64URL(calcBalancesHash(balances))
+	stateHash := states.getStrHash()
 	if stateHash != b.StateHash {
 		dbtx.Rollback()
-		log.Println("ERROR stateHash:", jsonifyWhatever(balances))
+		log.Println("ERROR stateHash:", jsonifyWhatever(states))
 		return fmt.Errorf("StateHash doesn't match. Expecting %s, got %s", stateHash, b.StateHash)
 	}
 
@@ -446,15 +456,15 @@ func dbIntroducePublisher(dbtx *sql.Tx, btx *BlockTransaction, tx *Tx, height in
 	return &p, nil
 }
 
-func dbGetBalances(dbtx *sql.Tx, pubkeys []string) (map[string]uint64, error) {
-	result := map[string]uint64{}
+func dbGetStates(dbtx *sql.Tx, pubkeys []string) (AccountStates, error) {
+	result := AccountStates{}
 	for _, k := range pubkeys {
-		balance := uint64(0)
-		err := dbtx.QueryRow("SELECT balance FROM state WHERE pubkey=?", k).Scan(&balance)
+		state := RawAccountState{}
+		err := dbtx.QueryRow("SELECT balance, nonce, data FROM state WHERE pubkey=?", k).Scan(&state.Balance, &state.Nonce, &state.Data)
 		if err != nil {
 			return result, err
 		}
-		result[k] = balance
+		result[k] = &state
 	}
 	return result, nil
 }

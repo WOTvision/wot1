@@ -37,22 +37,22 @@ type Block struct {
 
 var GenesisBlock = BlockWithHeader{
 	BlockHeader: BlockHeader{
-		Hash: "QPDenDioMo7bpKfvqvdL3qvNnrmb36f4hMyveaSuX58",
+		Hash: "iU3HyYPlr-nxwGSm_lFw2ERQ7fibxqmiRIaGc9GV-NE",
 	},
 	Block: Block{
 		PreviousBlockHash: "",
 		TimeUTC:           1518733930,
-		Nonce:             104124,
+		Nonce:             106367,
 		Flags:             []string{"genesis"},
 		Transactions: []BlockTransaction{
 			BlockTransaction{
-				TxHash:    "jL2Hq7rbFOIXIM_vGyiDvZvtZ2iNLf_uUqyjIZrFX2s",
+				TxHash:    "33eH1RtE7NmDkkE8hinXBcptWw9zUljt8nv3UtM7bIc",
 				Flags:     []string{},
-				TxData:    `{"v":1,"f":["coinbase"],"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","o":[{"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","a":100000}],"d":{"genesis":"The Guardian, 15th Feb 2018, \"Trump again emphasizes 'mental health' over gun control after Florida shooting\"","comment":"Peace among worlds!","_id":"_intro","_key":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","_name":"WOTvision"}}`,
-				Signature: "39gcwC7IiL3xMdxKYDUSsfvi64QVCbgTzkl-Vqa5RDnPEKTuoic7LSWJ5vCAU_GEXICvuQlcXwJ3Vsd8QmL4Bg",
+				TxData:    `{"v":1,"f":["coinbase"],"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","o":[{"k":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","a":1000000,"n":1}],"d":{"genesis":"The Guardian, 15th Feb 2018, \"Trump again emphasizes 'mental health' over gun control after Florida shooting\"","comment":"Peace among worlds!","_id":"_intro","_key":"WF2bn2KvUMR2CJYpekH8wmDZxLj9GoEyREADSZ2I3gkY","_name":"WOTvision"}}`,
+				Signature: "PMCJiphBeNR6nggA7NQcIzHZ31jqQa80gJVV70qLigiM594tVBAvSXFDxGSqgL-H_K1wcnptTJ16eGvqXFffAw",
 			},
 		},
-		StateHash: "lFO9IISPrRW1Sijykm3jvI5AARG-klUzXcxyzjoPDfM",
+		StateHash: "nof_udomIBf8I2-PavfShu8q7ii2WwFROy1ZaxRvxow",
 	},
 }
 
@@ -128,7 +128,7 @@ func (btx *BlockTransaction) VerifyBasics() (Tx, error) {
 }
 
 func initGenesis() {
-	balances := map[string]uint64{}
+	states := AccountStates{}
 	for _, btx := range GenesisBlock.Transactions {
 		tx := Tx{}
 		err := json.Unmarshal([]byte(btx.TxData), &tx)
@@ -148,13 +148,21 @@ func initGenesis() {
 			log.Fatalln("Error verifying genesis block tx signature:", err)
 		}
 		for _, o := range tx.Outputs {
-			balances[o.PubKey] = balances[o.PubKey] + o.Amount
+			if states[o.PubKey] == nil {
+				states[o.PubKey] = &RawAccountState{Balance: o.Amount, Nonce: o.Nonce}
+			} else {
+				states[o.PubKey].Balance += o.Amount
+				if o.Nonce != states[o.PubKey].Nonce+1 {
+					log.Fatalln("nonce out of sync in genesis block")
+				}
+				states[o.PubKey].Nonce = o.Nonce
+			}
 		}
 	}
-	balancesHash := calcBalancesHash(balances)
-	newStateHash := mustEncodeBase64URL(balancesHash)
-	if GenesisBlock.StateHash != newStateHash {
-		log.Fatalln("Unexpected genesis state hash. Expecting", newStateHash, "got", GenesisBlock.StateHash)
+	strStateHash := states.getStrHash()
+	if GenesisBlock.StateHash != strStateHash {
+		log.Println("New genesis state:", jsonifyWhatever(states))
+		log.Fatalln("Unexpected genesis state hash. Expecting", strStateHash, "got", GenesisBlock.StateHash)
 	}
 
 	bHash := GenesisBlock.Block.Hash()
@@ -170,5 +178,5 @@ func initGenesis() {
 }
 
 func getCoinbaseAtHeight(height int) uint64 {
-	return 100000
+	return 100 * OneCoin
 }
