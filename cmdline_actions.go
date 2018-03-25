@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"path"
 	"regexp"
@@ -21,18 +22,18 @@ func showHelp() {
 	fmt.Println("\tcreatewallet\tCreates a new wallet file. Expected arguments: filename wallet_name password.")
 	fmt.Println("\tcreatekey\tCreates a new key in the current wallet (", path.Join(*dataDir, *walletFileName), "). Expected arguments: key_name password.")
 	fmt.Println("\t\t\tNote: key_name is the publisher name when the key gets introduced in the blockchain.")
-	fmt.Println("\tsignjson\tSigns a JSON document string with the specified key. Expected arguments: key_name password json.")
+	fmt.Println("\tsignjson\tSigns a JSON document string with the specified key. Expected arguments: key_name password json_document.")
 	fmt.Println("\tlistkeys\tLists the keys in the current wallet.")
+	fmt.Println("\tsend\tSends coins in a transactions, with optional JSON document. Expected arguments: from_key password to_key amount [json_document].")
 	fmt.Println()
-	fmt.Println("If started without a command specified, a blockchain node will be started.")
+	fmt.Println("Notes:")
+	fmt.Println("* If started without a command specified, a blockchain node will be started.")
+	fmt.Println("* The json_document argument (where applicable) is literally a JSON string.")
 }
 
 func processSimpleCmdLineActions() bool {
 	cmd := flag.Arg(0)
-	if cmd == "help" {
-		showHelp()
-		os.Exit(0)
-	} else if cmd == "createwallet" {
+	if cmd == "createwallet" {
 		if flag.NArg() != 4 {
 			fmt.Println("Expecting arguments: filename wallet_name password")
 			os.Exit(1)
@@ -124,16 +125,89 @@ func processSimpleCmdLineActions() bool {
 			fmt.Println(fmt.Sprintf("%-25s %s %v %v", key.Name, key.Public, key.CreationTime.Format(time.RFC3339), key.Flags))
 		}
 		return true
+	} else if cmd == "send" {
+		initWallet(false)
+		if len(currentWallet.Keys) < 1 {
+			log.Fatal("No keys in current wallet")
+		}
+		if flag.NArg() < 5 {
+			fmt.Println("Expecting arguments: from_key password to_key amount [json_document]")
+			os.Exit(1)
+		}
+		fromKeyStr := flag.Arg(1)
+		fromKeyPassword := flag.Arg(2)
+		toKeyStr := flag.Arg(3)
+		amountStr := flag.Arg(4)
+		jsonDoc := flag.Arg(5) // optional
+		var fromKey *WalletKey
+		for kid, key := range currentWallet.Keys {
+			if key.Name == fromKeyStr {
+				fromKeyStr = key.Public
+			}
+			if key.Name == toKeyStr {
+				toKeyStr = key.Public
+			}
+			if key.Public == fromKeyStr {
+				fromKey = &(currentWallet.Keys[kid])
+			}
+		}
+		if fromKey == nil {
+			fmt.Println("The from_key argument must be in the current wallet")
+			os.Exit(1)
+		}
+		if fromKeyStr == toKeyStr {
+			fmt.Println("Warning: sending a tx from and to the same address")
+		}
+		f, _, err := big.ParseFloat(amountStr, 10, CoinDecimals, big.ToPositiveInf)
+		if err != nil {
+			fmt.Println("Invalid number:", amountStr, err.Error())
+			os.Exit(1)
+		}
+		if f.Sign() < 0 {
+			fmt.Println("Cannot send negative amounts")
+			os.Exit(1)
+		}
+		f.Mul(f, big.NewFloat(OneCoin))
+		amountInt, _ := f.Uint64()
+		var doc PublishedData
+		if jsonDoc != "" && json.Unmarshal([]byte(jsonDoc), &doc) != nil {
+			fmt.Println("Invalid JSON document:", jsonDoc)
+		}
+		newNonce := uint64(1)
+		dbtx, err := db.Begin()
+		if err != nil {
+			log.Fatal(err)
+		}
+		states, err := dbGetStates(dbtx, []string{toKeyStr})
+		if err != nil {
+			log.Fatal(err)
+		}
+		dbtx.Rollback()
+		if len(states) != 0 {
+			newNonce = states[toKeyStr].Nonce + 1
+		}
+		tx := Tx{Data: doc, SigningPubKey: fromKeyStr, Version: CurrentTxVersion, Outputs: []TxOutput{TxOutput{PubKey: toKeyStr, Amount: amountInt, Nonce: newNonce}}}
+		txJSONBytes := jsonifyWhateverToBytes(tx)
+		err = fromKey.UnlockPrivateKey(fromKeyPassword)
+		if err != nil {
+			log.Fatal(err)
+		}
+		sig, err := fromKey.SignRaw(txJSONBytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+		strSig := mustEncodeBase64URL(sig)
+		btx := BlockTransaction{TxHash: mustEncodeBase64URL(txJSONBytes), TxData: string(txJSONBytes), Signature: strSig}
+		fmt.Println(jsonifyWhatever(btx))
 	}
 	return false
 }
 
 func processCmdLineActions() bool {
 	cmd := flag.Arg(0)
-	if cmd == "createwallet" {
-		return true
-	} else if cmd == "signjson" {
-		return true
+	if cmd == "help" {
+		showHelp()
+		os.Exit(0)
 	}
 	return false
 }
