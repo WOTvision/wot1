@@ -503,11 +503,15 @@ func dbSimStateHashStr(dbtx *sql.Tx, block BlockWithHeader) (string, error) {
 		}
 
 		// XXX: fees accounting?!
+		// XXX: mining needs a better way to be notified of an invalid tx; custom error type?
 		for _, out := range tx.Outputs {
 			if !isCoinbase {
 				if out.Amount < states[tx.SigningPubKey].Balance {
 					states[tx.SigningPubKey].Balance -= out.Amount
 					states[tx.SigningPubKey].Nonce++
+					if states[tx.SigningPubKey].Nonce != tx.PubKeyNonce {
+						return btx.TxHash, fmt.Errorf("[sim] nonce out of sync for tx %s: expecting %d, got %d", btx.TxHash, states[tx.SigningPubKey].Nonce, tx.PubKeyNonce)
+					}
 				} else {
 					return "", fmt.Errorf("Not enough balance for tx %s", btx.TxHash)
 				}

@@ -84,6 +84,10 @@ func mineBlock(dbtx *sql.Tx, min, max uint64, prevHeight int, prevHash string, r
 	block.Transactions = append([]BlockTransaction{coinbaseBtx}, block.Transactions...)
 	block.StateHash, err = dbSimStateHashStr(dbtx, block)
 	if err != nil {
+		if block.StateHash != "" {
+			// Assume this contains a tx hash of an invalid tx, and remove it
+			dbtx.Exec("DELETE FROM utx WHERE hash=?", block.StateHash)
+		}
 		return err
 	}
 
