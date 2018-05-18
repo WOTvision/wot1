@@ -1,4 +1,15 @@
-# The WoT blockchain app v1
+# The WoT blockchain
+
+This is a repository containing an implementation of a blockchain which supports an unique feature set. This feature set is described in the "WoT service v1" section of this document.
+
+Technical properties of the WoT blockchain:
+
+* JSON-based
+* Allows publishing of arbitrary JSON documents as transactions
+* Uses Ed25519 cryptography
+* Allows the use of "handles" instead of addresses
+
+# The WoT service v1
 
 For a description what this is all about, read the [White Paper](https://docs.google.com/document/d/1SSBQNTSJY--a-7NjfUMnGdNy4yIg29qOwcWNxHq_DoE/edit?usp=sharing).
 
