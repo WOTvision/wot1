@@ -97,6 +97,8 @@ Currently defined special keys in the payload document are:
 * `_name`: A human-readable name used in certain types of documents.
 * `_newkey`: A new public key the publisher will use from now on. All previously published transactions by this publisher are to be verified with the old key, while all transactions published from now on with this new key are presumed to be associated with the same publisher.
 * `_delkey`: Instruction to delete the association between a key and this publisher for all subsequent transactions. I.e. all transactions signed by this particular key will no longer be associated with this publisher.
-* `_vouchtx`: The publisher of this transaction vouches that this transaction contains data he considers valid. The value for the key is the tx hash.
+* `_vouchtx`: The publisher of this transaction vouches that another transaction contains data he considers valid - he "upvotes" it. The value for the key is the tx hash.
+
+Most of these keys are optional.
 
 **Note:** In the current implementation, the payload JSON document is limited to a single level key-value dictionary where both keys and values are strings.
