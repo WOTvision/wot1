@@ -8,6 +8,7 @@ This is a repository containing an implementation of a blockchain which supports
 * Allows publishing of arbitrary JSON documents as transactions
 * Uses Ed25519 cryptography
 * Allows the use of "handles" instead of addresses
+* Allows "upvoting" 3rd party documents published as transactions
 
 This blockchain is built primarily to support the feature set described in the following section - however, the blockchain itself is usable for other purposes as well.
 
