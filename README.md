@@ -1,13 +1,15 @@
 # The WoT blockchain
 
-This is a repository containing an implementation of a blockchain which supports an unique feature set. This feature set is described in the "WoT service v1" section of this document.
+This is a repository containing an implementation of a blockchain which supports an unique feature set. 
 
-Technical properties of the WoT blockchain:
+(Current) technical properties of the WoT blockchain:
 
 * JSON-based
 * Allows publishing of arbitrary JSON documents as transactions
 * Uses Ed25519 cryptography
 * Allows the use of "handles" instead of addresses
+
+Theis blockchain is built primarily to support the feature set described in the following section - however, the blockchain itself is usable for other purposes as well.
 
 # The WoT service v1
 
