@@ -9,7 +9,7 @@ This is a repository containing an implementation of a blockchain which supports
 * Uses Ed25519 cryptography
 * Allows the use of "handles" instead of addresses
 
-Theis blockchain is built primarily to support the feature set described in the following section - however, the blockchain itself is usable for other purposes as well.
+This blockchain is built primarily to support the feature set described in the following section - however, the blockchain itself is usable for other purposes as well.
 
 # The WoT service v1
 
