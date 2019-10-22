@@ -18,7 +18,8 @@ For a description what this is all about, read the [White Paper](https://docs.go
 
 Some use cases:
 
-* Politicians can publish digitally signed statements, and reference them in public addresses
+* Politicians can publish digitally signed statements, and reference them in public addresses so they are not taken out of context
+* Newspapers can reference politicians' statements, by publishing QR code linking to them
 * Companies can publish digitally signed documents, such as investor reports, etc.
 * Governments or research institutes can publish digitally signed statistics information, results of R&D, etc.
 
