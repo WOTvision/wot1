@@ -16,6 +16,12 @@ This blockchain is built primarily to support the feature set described in the f
 
 For a description what this is all about, read the [White Paper](https://docs.google.com/document/d/1SSBQNTSJY--a-7NjfUMnGdNy4yIg29qOwcWNxHq_DoE/edit?usp=sharing).
 
+Some use cases:
+
+* Politicians can publish digitally signed statements, and reference them in public addresses
+* Companies can publish digitally signed documents, such as investor reports, etc.
+* Governments or research institutes can publish digitally signed statistics information, results of R&D, etc.
+
 Current state of project: early development phase / not usable.
 
 ## Introduction to publishing on the WoT blockchain
