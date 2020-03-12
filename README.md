@@ -11,6 +11,7 @@ The goal is to have a global public notary service, for people and corporations 
 * Uses Ed25519 cryptography
 * Allows the use of "handles" instead of addresses
 * Allows "upvoting" 3rd party documents published as transactions
+* This upvoting can be used to provide support or endorsement of certain documents, like when a company's president upvotes a statement from their CFO.
 
 This blockchain is built primarily to support the feature set described in the following section - however, the blockchain itself is usable for other purposes as well.
 
