@@ -15,6 +15,8 @@ The goal is to have a global public notary service, for people and corporations 
 
 This blockchain is built primarily to support the feature set described in the following section - however, the blockchain itself is usable for other purposes as well.
 
+**Curent status:** This project is not funded and depends on my diminishing free time. Sponsors and investors are wanted.
+
 # The WoT service v1
 
 For a description what this is all about, read the [White Paper](https://docs.google.com/document/d/1SSBQNTSJY--a-7NjfUMnGdNy4yIg29qOwcWNxHq_DoE/edit?usp=sharing).
