@@ -2,7 +2,9 @@
 
 This is a repository containing an implementation of a blockchain which supports an unique feature set. 
 
-(Current) technical properties of the WoT blockchain:
+The goal is to have a global public notary service, for people and corporations to issue signed statements which are globally recognized and verifyable, which are identified by a QR code, which the media and news channel can reference and which can be verified by the consumers of information (i.e. ordinary people). In short, the goal is to combat fake news by using one of the only things blockchains are good for: distributing reliable data.
+
+(Current) technical properties of the WoT blockchain (WoT = Web of Trust):
 
 * JSON-based
 * Allows publishing of arbitrary JSON documents as transactions
