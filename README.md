@@ -1,17 +1,20 @@
 # The WoT blockchain
 
-This is a repository containing an implementation of a blockchain which supports an unique feature set. 
+This is a repository containing an implementation of a blockchain which supports an unique feature set: asserting trust of information organised in JSON documents. 
 
-The goal is to have a global public notary service, for people and corporations to issue signed statements which are globally recognized and verifyable, which are identified by a QR code, which the media and news channels can reference and which can be verified by the consumers of information (i.e. ordinary people). In short, the goal is to combat fake news by using one of the only things blockchains are good for: distributing reliable data, and by providing a low-tech user-centric interface to it, which everyone can use to verify random junk they hear on the media.
+The goal is to have a global public notary service, for people and corporations to issue signed statements which are globally recognized and verifyable, which are identified by a QR code, which the media and news channels can reference and which can be verified by the consumers of information (i.e. ordinary people). The vision is to combat fake news by using one of the only things blockchains are good for: distributing reliable data, and by providing a low-tech user-centric interface to it, which everyone can use to verify random junk they hear on the media.
+
+Example use case: The president of a major country issues a (text) statement promising certain actions in the next quarter, regarding an important national topic. He publishes this statement on the WoT blockchain, and this statement automatically receives a QR code. This QR code is reproduced by media (both digital media and classic media, including print) so everyone can verify the statement and read its original wording. The QR code can also be shown in a TV clip of the president giving a public announcement of the statement.
 
 (Current) technical properties of the WoT blockchain (WoT = Web of Trust):
 
 * JSON-based
 * Allows publishing of arbitrary JSON documents as transactions
 * Uses Ed25519 cryptography
-* Allows the use of "handles" instead of addresses
-* Allows "upvoting" 3rd party documents published as transactions
+* Allows the use of alphanumeric "handles" instead of addresses
+* Allows "upvoting" JSON documents published as transactions
 * This upvoting can be used to provide support or endorsement of certain documents, like when a company's president upvotes a statement from their CFO.
+* Allows "upvoting" user accounts, to endorse them in a hierarchical manner (e.g. a CEO publishes JSON documents vouching that a certain handle belongs to the company's PR department, the PR department publishes documents vouching that certain YouTube channels or social media accounts belong to the company, etc.)
 
 This blockchain is built primarily to support the feature set described in the following section - however, the blockchain itself is usable for other purposes as well.
 
