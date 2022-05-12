@@ -10,8 +10,7 @@ And for real journalists, they can publish their stories in parallel on the bloc
 
 This is what this project wants to do.
 
-If it gets funded, that is.
-
+If it gets funded, that is. It's not impossible - just hasn't happened so far. It even has a way of making money: as fees in article transactions.
 
 # Tech documentation
 
