@@ -1,5 +1,20 @@
 # The WoT blockchain
 
+You want to fight fake news? Hold politicians accountable? 
+
+All that can be done with a blockchain.
+
+Make those who issue statements of any kind - political, financial, scientific - publish and sign their statements on the blockchain. They will be issued a QR code uniquely identifying their statement. Make mass media quote such statements AND INCLUDE THE QR CODE so the public can verify the statement themselves, as well as get the ENTIRE STATEMENT, not just bits and pieces "journalists" quote out of context.
+
+And for real journalists, they can publish their stories in parallel on the blockchain so OTHER OUTFITS can quote their statements, AND PAY THEM for this quotation. In this way, the public can actually track what the real source of information is, and journalists and news outfits can actually get paid if someone quotes their articles. It's a win-win proposition.
+
+This is what this project wants to do.
+
+If it gets funded, that is.
+
+
+# Tech documentation
+
 This is a repository containing an implementation of a blockchain which supports an unique feature set: asserting trust of information organised in JSON documents. 
 
 The goal is to have a global public notary service, for people and corporations to issue signed statements which are globally recognized and verifyable, which are identified by a QR code, which the media and news channels can reproduce and which can be verified by the consumers of information (i.e. ordinary people). The vision is to combat fake news by using a thing blockchains are very good at: distributing reliable data, and by providing a low-tech user-centric interface to it, which everyone can use to verify random junk they hear on the media.
