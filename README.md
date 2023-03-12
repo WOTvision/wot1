@@ -1,5 +1,7 @@
 # The WoT blockchain
 
+**Note: this is 6 year old code. There has been no progress on it since.**
+
 You want to fight fake news? Hold politicians accountable? 
 
 All that can be done with a blockchain.
