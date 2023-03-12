@@ -2,6 +2,8 @@
 
 **Note: this is 6 year old code. There has been no progress on it since.**
 
+Here's a presentation with the pitch: https://docs.google.com/presentation/d/1_5rWRTpGtAmn7Mb-sBLqPqqW2qq4tgBvyB7D4H7yxdU/edit?usp=sharing
+
 You want to fight fake news? Hold politicians accountable? 
 
 All that can be done with a blockchain.
