@@ -16,6 +16,10 @@ This is what this project wants to do.
 
 If it gets funded, that is. It's not impossible - just hasn't happened so far. It even has a way of making money: as fees in article transactions.
 
+# Design goals
+
+- People follow other people on social media, but just "following" is not an indication of "trust". This project also adds the dimension of "trust" to the "follower" relationship, inspired by what OpenPGP did - a web of trust. You might want to follow someone but not trust them.
+
 # Tech documentation
 
 This is a repository containing an implementation of a blockchain which supports an unique feature set: asserting trust of information organised in JSON documents. 
