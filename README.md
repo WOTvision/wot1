@@ -19,6 +19,8 @@ If it gets funded, that is. It's not impossible - just hasn't happened so far. I
 # Design goals
 
 - People follow other people on social media, but just "following" is not an indication of "trust". This project also adds the dimension of "trust" to the "follower" relationship, inspired by what OpenPGP did - a web of trust. You might want to follow someone but not trust them.
+- Important information published (posted) will be digitally signed, and these signatures publically available for verification - blockchains are a technology uniquely suitable for this (NOT talking about fintech).
+- Key rotation must be a built-in feature. Information published with an old key is still valid information.
 
 # Tech documentation
 
